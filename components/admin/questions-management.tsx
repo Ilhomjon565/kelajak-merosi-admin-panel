@@ -570,122 +570,10 @@ export function QuestionsManagement() {
                 </CardDescription>
               </div>
               
-              <Button onClick={() => router.push("/admin/questions/add")}>
+              <Button onClick={() => setIsAddDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Yangi Savol
               </Button>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Yangi Savol Qo'shish</DialogTitle>
-                    <DialogDescription>
-                      Yangi test savolini yarating
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="subject">Fan</Label>
-                      <Select value={newQuestion.subjectId} onValueChange={(value) => setNewQuestion({...newQuestion, subjectId: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Fan tanlang" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subjects.map(subject => (
-                            <SelectItem key={subject.id} value={subject.id.toString()}>
-                              {subject.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="testTemplate">Test Shabloni</Label>
-                      <Select value={newQuestion.testTemplateId} onValueChange={(value) => setNewQuestion({...newQuestion, testTemplateId: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Shablon tanlang" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {testTemplates.map(template => (
-                            <SelectItem key={template.id} value={template.id.toString()}>
-                              {template.title}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="questionType">Savol turi</Label>
-                      <Select value={newQuestion.questionType} onValueChange={(value) => setNewQuestion({...newQuestion, questionType: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Tur tanlang" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlovli</SelectItem>
-                          <SelectItem value="SINGLE_CHOICE">Bitta tanlovli</SelectItem>
-                          <SelectItem value="TRUE_FALSE">To'g'ri/Noto'g'ri</SelectItem>
-                          <SelectItem value="ESSAY">Izohli savol</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="questionText">Savol matni</Label>
-                    <Textarea
-                      id="questionText"
-                      value={newQuestion.questionText}
-                      onChange={(e) => setNewQuestion({...newQuestion, questionText: e.target.value})}
-                      placeholder="Savol matnini kiriting..."
-                      rows={3}
-                    />
-                  </div>
-                  
-                  {(newQuestion.questionType === "MULTIPLE_CHOICE" || newQuestion.questionType === "SINGLE_CHOICE") && (
-                    <div className="space-y-4">
-                      <Label>Variantlar</Label>
-                      {newQuestion.testAnswerOptions.map((option, index) => (
-                        <div key={index} className="flex gap-2 items-center">
-                          <Input
-                            placeholder={`Variant ${index + 1}`}
-                            value={option.answerText}
-                            onChange={(e) => {
-                              const updatedOptions = [...newQuestion.testAnswerOptions]
-                              updatedOptions[index].answerText = e.target.value
-                              setNewQuestion({...newQuestion, testAnswerOptions: updatedOptions})
-                            }}
-                          />
-                          <input
-                            type="radio"
-                            name="correctOption"
-                            checked={option.isCorrect}
-                            onChange={() => {
-                              const updatedOptions = newQuestion.testAnswerOptions.map((opt, i) => ({
-                                ...opt,
-                                isCorrect: i === index
-                              }))
-                              setNewQuestion({...newQuestion, testAnswerOptions: updatedOptions})
-                            }}
-                          />
-                          <Label className="text-sm">To'g'ri javob</Label>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      Bekor qilish
-                    </Button>
-                    <Button onClick={handleAddQuestion}>
-                      Qo'shish
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
             </div>
           </CardHeader>
           
@@ -758,7 +646,120 @@ export function QuestionsManagement() {
               </div>
             </div>
           </CardContent>
-        </Card>
+                </Card>
+
+        {/* Add Question Dialog */}
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Yangi Savol Qo'shish</DialogTitle>
+              <DialogDescription>
+                Yangi test savolini yarating
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="subject">Fan</Label>
+                <Select value={newQuestion.subjectId} onValueChange={(value) => setNewQuestion({...newQuestion, subjectId: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Fan tanlang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map(subject => (
+                      <SelectItem key={subject.id} value={subject.id.toString()}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="testTemplate">Test Shabloni</Label>
+                <Select value={newQuestion.testTemplateId} onValueChange={(value) => setNewQuestion({...newQuestion, testTemplateId: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Shablon tanlang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {testTemplates.map(template => (
+                      <SelectItem key={template.id} value={template.id.toString()}>
+                        {template.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="questionType">Savol turi</Label>
+                <Select value={newQuestion.questionType} onValueChange={(value) => setNewQuestion({...newQuestion, questionType: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tur tanlang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlovli</SelectItem>
+                    <SelectItem value="SINGLE_CHOICE">Bitta tanlovli</SelectItem>
+                    <SelectItem value="TRUE_FALSE">To'g'ri/Noto'g'ri</SelectItem>
+                    <SelectItem value="ESSAY">Izohli savol</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="questionText">Savol matni</Label>
+              <Textarea
+                id="questionText"
+                value={newQuestion.questionText}
+                onChange={(e) => setNewQuestion({...newQuestion, questionText: e.target.value})}
+                placeholder="Savol matnini kiriting..."
+                rows={3}
+              />
+            </div>
+            
+            {(newQuestion.questionType === "MULTIPLE_CHOICE" || newQuestion.questionType === "SINGLE_CHOICE") && (
+              <div className="space-y-4">
+                <Label>Variantlar</Label>
+                {newQuestion.testAnswerOptions.map((option, index) => (
+                  <div key={index} className="flex gap-2 items-center">
+                    <Input
+                      placeholder={`Variant ${index + 1}`}
+                      value={option.answerText}
+                      onChange={(e) => {
+                        const updatedOptions = [...newQuestion.testAnswerOptions]
+                        updatedOptions[index].answerText = e.target.value
+                        setNewQuestion({...newQuestion, testAnswerOptions: updatedOptions})
+                      }}
+                    />
+                    <input
+                      type="radio"
+                      name="correctOption"
+                      checked={option.isCorrect}
+                      onChange={() => {
+                        const updatedOptions = newQuestion.testAnswerOptions.map((opt, i) => ({
+                          ...opt,
+                          isCorrect: i === index
+                        }))
+                        setNewQuestion({...newQuestion, testAnswerOptions: updatedOptions})
+                      }}
+                    />
+                    <Label className="text-sm">To'g'ri javob</Label>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                Bekor qilish
+              </Button>
+              <Button onClick={handleAddQuestion}>
+                Qo'shish
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Questions List */}
         <div className="space-y-4">
