@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -51,7 +51,7 @@ interface TestTemplateForm {
     imageUrl: string
 }
 
-export default function SubjectsPage() {
+function SubjectsPageContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     
@@ -435,5 +435,25 @@ export default function SubjectsPage() {
                 <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
             )}
         </div>
+    )
+}
+
+// Loading fallback component
+function SubjectsPageLoading() {
+    return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+                <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Sahifa yuklanmoqda...</p>
+            </div>
+        </div>
+    )
+}
+
+export default function SubjectsPage() {
+    return (
+        <Suspense fallback={<SubjectsPageLoading />}>
+            <SubjectsPageContent />
+        </Suspense>
     )
 }

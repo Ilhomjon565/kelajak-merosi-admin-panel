@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,7 +42,7 @@ interface TestTemplateForm {
     questions: TestQuestion[]
 }
 
-export default function AddQuestionsPage() {
+function QuestionsPageContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     
@@ -585,5 +585,24 @@ export default function AddQuestionsPage() {
                 <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
             )}
         </div>
+    )
+}
+
+function LoadingFallback() {
+    return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+                <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Ma'lumotlar yuklanmoqda...</p>
+            </div>
+        </div>
+    )
+}
+
+export default function AddQuestionsPage() {
+    return (
+        <Suspense fallback={<LoadingFallback />}>
+            <QuestionsPageContent />
+        </Suspense>
     )
 }
