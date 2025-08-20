@@ -21,7 +21,7 @@ interface User {
 
 interface TestAccessRecord {
   id: number
-  testTemplate: string
+  testTemplate: string  // This contains the template ID
   grantedAt: string
 }
 
@@ -38,9 +38,13 @@ export function UserDetail() {
   const userId = params.userId as string
 
   useEffect(() => {
+    console.log('UserDetail useEffect triggered with userId:', userId)
+    console.log('userId type:', typeof userId)
     if (userId) {
       loadUserData()
       loadTestTemplates()
+    } else {
+      console.error('No userId provided in URL params')
     }
   }, [userId])
 
@@ -49,6 +53,9 @@ export function UserDetail() {
       // User access ma'lumotlarini olish
       const accessResponse = await apiService.getUserAccess(userId)
       console.log('User access response:', accessResponse)
+      console.log('Response data type:', typeof accessResponse.data)
+      console.log('Response data length:', accessResponse.data?.length)
+      console.log('Full response structure:', JSON.stringify(accessResponse, null, 2))
       
       if (accessResponse.success && accessResponse.data && accessResponse.data.length > 0) {
         // API response structure: data[0].testTemplates array
@@ -57,11 +64,23 @@ export function UserDetail() {
         const testTemplatesData = userAccessData.testTemplates || []
         
         // Test access record'larni saqlash
-        const accessRecords: TestAccessRecord[] = testTemplatesData.map((access: any) => ({
-          id: access.id,
-          testTemplate: access.testTemplate,
-          grantedAt: access.grantedAt
-        }))
+        console.log('Raw testTemplatesData:', testTemplatesData)
+        
+        const accessRecords: TestAccessRecord[] = testTemplatesData.map((access: any) => {
+          console.log('Processing access record:', access)
+          
+          if (!access.testTemplate) {
+            console.warn('No testTemplate found in access record:', access)
+          }
+          
+          return {
+            id: access.id,
+            testTemplate: access.testTemplate || 'unknown',
+            grantedAt: access.grantedAt
+          }
+        })
+        
+        console.log('Processed access records:', accessRecords)
         setTestAccessRecords(accessRecords)
         
         setUser({
@@ -72,30 +91,47 @@ export function UserDetail() {
           testAccessTemplate: accessRecords.length > 0 ? accessRecords[0].testTemplate : undefined
         })
       } else {
+        console.log('No user access data found, falling back to basic user info')
         // User access yo'q bo'lsa, oddiy user ma'lumotlarini olish
-        const usersResponse = await apiService.getUsers()
-        const userData = usersResponse.data.find(u => u.userId.toString() === userId)
-        
-        if (userData) {
-          setUser({
-            id: userData.userId.toString(),
-            name: userData.fullName,
-            phone: userData.phoneNumber,
-            hasTestAccess: false,
-            testAccessTemplate: undefined
-          })
-        }
-        setTestAccessRecords([])
+        await loadBasicUserInfo()
       }
     } catch (error) {
       console.error('User ma\'lumotlarini yuklashda xatolik:', error)
       
       // Fallback: oddiy user ma'lumotlarini olish
-      try {
-        const usersResponse = await apiService.getUsers()
-        const userData = usersResponse.data.find(u => u.userId.toString() === userId)
-        
-        if (userData) {
+      await loadBasicUserInfo()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadBasicUserInfo = async () => {
+    try {
+      console.log('Loading basic user info for userId:', userId)
+      const usersResponse = await apiService.getUsers()
+      console.log('Users response:', usersResponse)
+      
+      if (!usersResponse || !usersResponse.data) {
+        console.error('Users response is invalid:', usersResponse)
+        return
+      }
+      
+      console.log('Users data:', usersResponse.data)
+      console.log('Users data type:', typeof usersResponse.data)
+      console.log('Users data length:', Array.isArray(usersResponse.data) ? usersResponse.data.length : 'Not an array')
+      console.log('Looking for user with ID:', userId)
+      
+      // Handle case where data might not be an array
+      const usersArray = Array.isArray(usersResponse.data) ? usersResponse.data : [usersResponse.data]
+      
+      const userData = usersArray.find(u => {
+        console.log('Checking user:', u, 'userId:', u?.userId, 'target:', userId)
+        return u && u.userId && u.userId.toString() === userId
+      })
+      
+      console.log('Found user data:', userData)
+      
+              if (userData) {
           setUser({
             id: userData.userId.toString(),
             name: userData.fullName,
@@ -103,13 +139,47 @@ export function UserDetail() {
             hasTestAccess: false,
             testAccessTemplate: undefined
           })
+        } else {
+          console.error('User not found in users list')
+          console.log('Available users:', usersArray.map(u => ({ id: u?.userId, name: u?.fullName })))
+          
+          // Try to find user by different ID fields
+          const alternativeUser = usersArray.find(u => 
+            u && (u.userId?.toString() === userId || u.phoneNumber === userId)
+          )
+          
+          if (alternativeUser) {
+            console.log('Found user with alternative ID field:', alternativeUser)
+            setUser({
+              id: alternativeUser.userId?.toString() || userId,
+              name: alternativeUser.fullName || 'Unknown User',
+              phone: alternativeUser.phoneNumber || 'N/A',
+              hasTestAccess: false,
+              testAccessTemplate: undefined
+            })
+          } else {
+            // Set a default user object to prevent crashes
+            setUser({
+              id: userId,
+              name: 'Unknown User',
+              phone: 'N/A',
+              hasTestAccess: false,
+              testAccessTemplate: undefined
+            })
+          }
         }
-        setTestAccessRecords([])
-      } catch (fallbackError) {
-        console.error('Fallback user ma\'lumotlarini yuklashda xatolik:', fallbackError)
-      }
-    } finally {
-      setLoading(false)
+      setTestAccessRecords([])
+    } catch (error) {
+      console.error('Failed to load basic user info:', error)
+      // Set a default user object to prevent crashes
+      setUser({
+        id: userId,
+        name: 'Unknown User',
+        phone: 'N/A',
+        hasTestAccess: false,
+        testAccessTemplate: undefined
+      })
+      setTestAccessRecords([])
     }
   }
 
@@ -157,16 +227,20 @@ export function UserDetail() {
     setUpdating(true)
     try {
       console.log('Removing access record with ID:', accessId)
-      // API'da access record'ni ID bilan o'chirish kerak
-      // Lekin hozircha templateId bilan ishlaymiz, chunki API endpoint templateId ni kutmoqda
-      // API response'dan templateId ni topamiz
+      
       const accessRecord = testAccessRecords.find(record => record.id === accessId)
       if (!accessRecord) {
         console.error('Access record topilmadi')
         return
       }
       
-      const response = await apiService.revokeTestAccessById(accessId)
+      console.log('Access record found:', accessRecord)
+      
+      if (!accessRecord.testTemplate || accessRecord.testTemplate === 'unknown') {
+        console.error('Test template ID is undefined or unknown for access record:', accessRecord)
+        return
+      }
+      const response = await apiService.revokeTestAccess(user.id, accessRecord.id.toString())
       console.log('Remove response:', response)
       
       if (response.success) {
@@ -213,12 +287,20 @@ export function UserDetail() {
           <div className="text-center">
             <Users className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">Foydalanuvchi topilmadi</h3>
-            <Button 
-              onClick={() => router.push('/admin/users')}
-              className="mt-4"
-            >
-              Orqaga qaytish
-            </Button>
+            <p className="text-sm text-gray-500 mt-2">Foydalanuvchi ma'lumotlari yuklanmoqda yoki topilmadi</p>
+            <div className="mt-4 space-x-2">
+              <Button 
+                onClick={() => loadUserData()}
+                variant="outline"
+              >
+                Qayta urinish
+              </Button>
+              <Button 
+                onClick={() => router.push('/admin/users')}
+              >
+                Orqaga qaytish
+              </Button>
+            </div>
           </div>
         </div>
       </div>

@@ -218,8 +218,7 @@ export function AddQuestionForm() {
     const types: { [key: string]: string } = {
       "SINGLE_CHOICE": "1 ta to'g'ri javob",
       "MULTIPLE_CHOICE": "Ko'p tanlovli",
-      "TRUE_FALSE": "To'g'ri/Noto'g'ri",
-      "ESSAY": "Izohli savol"
+      "WRITTEN_ANSWER": "Yozma savol"
     }
     return types[type] || type
   }
@@ -470,8 +469,7 @@ export function AddQuestionForm() {
                     <SelectContent>
                       <SelectItem value="SINGLE_CHOICE">1 ta to'g'ri javob</SelectItem>
                       <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlovli</SelectItem>
-                      <SelectItem value="TRUE_FALSE">To'g'ri/Noto'g'ri</SelectItem>
-                      <SelectItem value="ESSAY">Izohli savol</SelectItem>
+                      <SelectItem value="WRITTEN_ANSWER">Yozma savol</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -479,7 +477,8 @@ export function AddQuestionForm() {
             </CardContent>
           </Card>
 
-          {/* Answer Options Card */}
+          {/* Answer Options Card - Only show for multiple choice questions */}
+          {formData.questionType !== "WRITTEN_ANSWER" && (
           <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl text-gray-800 flex items-center gap-2">
@@ -600,6 +599,7 @@ export function AddQuestionForm() {
               </div>
             </CardContent>
           </Card>
+          )}
 
           {/* Submit Button */}
           <div className="flex justify-center pt-6">

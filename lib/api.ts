@@ -657,17 +657,6 @@ class ApiService {
     }
   }
 
-  // Yangi metod - accessId bilan ishlash uchun
-  async revokeTestAccessById(accessId: number): Promise<ApiResponse<any>> {
-    try {
-      return await this.request<any>(`/api/access/${accessId}`, {
-        method: 'DELETE',
-      })
-    }
-    catch (error) {
-      throw new Error('Failed to revoke test access by ID')
-    }
-  }
 }
 
 // Create and export a singleton instance

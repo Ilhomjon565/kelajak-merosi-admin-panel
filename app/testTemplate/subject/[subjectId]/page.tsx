@@ -85,7 +85,7 @@ export default function TestTemplateSubjectPage() {
   const [error, setError] = useState<string | null>(null)
   
   const [searchTerm, setSearchTerm] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
   const [totalPages, setTotalPages] = useState(0)
   const [totalItems, setTotalItems] = useState(0)
@@ -449,10 +449,10 @@ export default function TestTemplateSubjectPage() {
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      onClick={() => router.push(`/testTemplate/${template.id}`)}
+                      onClick={() => router.push(`/admin/test-templates`)}
                     >
                       <Eye className="mr-2 h-3 w-3" />
-                      Ko'rish
+                      Admin panelga qaytish
                     </Button>
                   </div>
                 </div>

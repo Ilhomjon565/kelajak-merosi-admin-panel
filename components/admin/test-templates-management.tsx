@@ -143,27 +143,40 @@ export function TestTemplatesManagement() {
       setLoading(true)
       setError(null)
       
-      // Fetch subjects from the working API endpoint
-      const response = await fetch('https://api.bir-zum.uz/api/template/mainSubjects', {
+      // Fetch test templates from the API endpoint
+      const response = await fetch('https://api.bir-zum.uz/api/template/all', {
         headers: {
           'Authorization': `Bearer ${apiService.getAccessToken()}`
         }
       })
       
       const result = await response.json()
-      console.log('Subjects API response:', result)
+      console.log('Test templates API response:', result)
       
       if (result.success) {
-        setSubjects(result.data || [])
-        
-        // Mock test templates yaratamiz subjects dan
-        const mockTemplates: TestTemplate[] = result.data.map((subject: any, index: number) => ({
-          id: (index + 1).toString(),
-          title: `${subject.name}`
+        // API returns test templates directly, not subjects
+        const templates: TestTemplate[] = result.data.map((template: any) => ({
+          id: template.id.toString(),
+          title: template.title,
+          duration: template.duration,
+          price: template.price,
+          subjects: template.subjects || []
         }))
-        setTestTemplates(mockTemplates)
+        setTestTemplates(templates)
+        
+        // Extract unique subjects from templates for filtering
+        const uniqueSubjects: Subject[] = []
+        templates.forEach(template => {
+          template.subjects.forEach((subjectData: any) => {
+            const existingSubject = uniqueSubjects.find(s => s.id === subjectData.subject.id)
+            if (!existingSubject) {
+              uniqueSubjects.push(subjectData.subject)
+            }
+          })
+        })
+        setSubjects(uniqueSubjects)
       } else {
-        setError("Fanlarni yuklashda xatolik yuz berdi")
+        setError("Test shablonlarini yuklashda xatolik yuz berdi")
       }
     } catch (err) {
       setError("Ma'lumotlarni yuklashda xatolik yuz berdi")
@@ -576,240 +589,12 @@ export function TestTemplatesManagement() {
                 </CardDescription>
               </div>
               
-              <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
-                if (!open) {
-                  setTestQuestions([])
-                  setCurrentQuestion({
-                    questionType: "SINGLE_CHOICE",
-                    questionText: "",
-                    writtenAnswer: "",
-                    imageUrl: "",
-                    youtubeUrl: "",
-                    position: "",
-                    options: [
-                      { answerText: "", imageUrl: "", isCorrect: false },
-                      { answerText: "", imageUrl: "", isCorrect: false },
-                      { answerText: "", imageUrl: "", isCorrect: false },
-                      { answerText: "", imageUrl: "", isCorrect: false }
-                    ]
-                  })
-                }
-                setIsAddDialogOpen(open)
-              }}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Yangi Shablon
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Yangi Test Shablonini Qo'shish</DialogTitle>
-                    <DialogDescription>
-                      Yangi test shablonini yarating
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="title">Nomi</Label>
-                      <Input
-                        id="title"
-                        value={newTemplate.title}
-                        onChange={(e) => setNewTemplate({...newTemplate, title: e.target.value})}
-                        placeholder="Test nomi"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="subject">Fan</Label>
-                      <Select value={newTemplate.subjectId} onValueChange={(value) => setNewTemplate({...newTemplate, subjectId: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Fan tanlang" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subjects.map(subject => (
-                            <SelectItem key={subject.id} value={subject.id.toString()}>
-                              {subject.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="duration">Vaqt chegarasi (minut)</Label>
-                      <Input
-                        id="duration"
-                        type="number"
-                        value={newTemplate.duration}
-                        onChange={(e) => setNewTemplate({...newTemplate, duration: e.target.value})}
-                        placeholder="60"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="price">Narx</Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        value={newTemplate.price}
-                        onChange={(e) => setNewTemplate({...newTemplate, price: e.target.value})}
-                        placeholder="0"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2 lg:col-span-2">
-                      <Label htmlFor="imageFile">Template rasm fayli</Label>
-                      <Input
-                        id="imageFile"
-                        type="file"
-                        accept="image/*"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0]
-                          if (file) {
-                            setSelectedImage(file)
-                            try {
-                              const imageUrl = await handleImageUpload(file)
-                              // Template image URL ni saqlash uchun state qo'shamiz
-                              setNewTemplate(prev => ({ ...prev, imageUrl }))
-                            } catch (error) {
-                              console.error('Template rasm yuklashda xatolik:', error)
-                            }
-                          }
-                        }}
-                        className="cursor-pointer"
-                      />
-                      {selectedImage && (
-                        <div className="mt-2">
-                          <p className="text-sm text-gray-600 truncate">
-                            Tanlangan: {selectedImage.name}
-                          </p>
-                          {newTemplate.imageUrl && (
-                            <p className="text-xs text-green-600 mt-1">
-                              Rasm yuklandi: {newTemplate.imageUrl}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Test Questions Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-base font-medium">Test Savollari</Label>
-                    </div>
-
-                    {testQuestions.length > 0 && (
-                      <div className="space-y-3">
-                        {testQuestions.map((question, qIndex) => (
-                          <Card key={qIndex} className="p-3">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h4 className="font-medium text-sm">Savol {qIndex + 1}</h4>
-                                  <Badge variant="outline" className="text-xs">{question.questionType}</Badge>
-                                  {question.position && <Badge variant="outline" className="text-xs">P: {question.position}</Badge>}
-                                </div>
-                                <p className="text-sm text-gray-600 mb-2 overflow-hidden text-ellipsis" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{question.questionText}</p>
-                                {question.imageUrl && (
-                                  <div className="mb-2">
-                                    <img 
-                                      src={question.imageUrl} 
-                                      alt="Savol rasmi" 
-                                      className="w-16 h-16 object-cover rounded border"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => removeTestQuestion(qIndex)}
-                                className="text-red-600 hover:text-red-700 ml-2 flex-shrink-0"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                            
-                            <div className="space-y-1">
-                              <h5 className="text-xs font-medium text-gray-700">Variantlar:</h5>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                                {question.options.map((option, oIndex) => (
-                                  <div key={oIndex} className="flex items-center gap-2 text-xs">
-                                    <input
-                                      type="radio"
-                                      name={`question-${qIndex}`}
-                                      checked={option.isCorrect}
-                                      onChange={() => updateQuestionOption(qIndex, oIndex, 'isCorrect', true)}
-                                      className="text-blue-600"
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                      <span className={`truncate block ${option.isCorrect ? 'font-medium text-green-600' : ''}`}>
-                                        {option.answerText}
-                                      </span>
-                                      {option.imageUrl && (
-                                        <img 
-                                          src={option.imageUrl} 
-                                          alt="Variant rasmi" 
-                                          className="w-8 h-8 object-cover rounded mt-1"
-                                        />
-                                      )}
-                                    </div>
-                                    {option.isCorrect && <Badge variant="secondary" className="text-xs flex-shrink-0">✓</Badge>}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </Card>
-                        ))}
-                      </div>
-                    )}
-
-                    {testQuestions.length === 0 && (
-                      <div className="text-center py-6 border-2 border-dashed border-gray-300 rounded-lg">
-                        <p className="text-gray-500">Hali hech qanday savol qo'shilmagan</p>
-                        <p className="text-sm text-gray-400 mt-1">Test shablonini yaratish uchun savollar qo'shing</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Add Question Button - Always at bottom */}
-                  <div className="pt-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setIsAddQuestionDialogOpen(true)}
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Savol Qo'shish
-                    </Button>
-                  </div>
-                  
-
-                  
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      Bekor qilish
-                    </Button>
-                    <Button 
-                      onClick={handleAddTemplate}
-                      disabled={isUploading}
-                    >
-                      {isUploading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Yuklanmoqda...
-                        </>
-                      ) : (
-                        'Qo\'shish'
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <div>
+                <Button onClick={() => router.push("/admin/test-templates/add")}> 
+                  <Plus className="mr-2 h-4 w-4" />
+                  Yangi Shablon
+                </Button>
+              </div>
             </div>
           </CardHeader>
           

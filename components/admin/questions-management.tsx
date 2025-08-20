@@ -437,8 +437,7 @@ export function QuestionsManagement() {
     const types: { [key: string]: string } = {
       "MULTIPLE_CHOICE": "Ko'p tanlovli",
       "SINGLE_CHOICE": "Bitta tanlovli",
-      "TRUE_FALSE": "To'g'ri/Noto'g'ri",
-      "ESSAY": "Izohli savol"
+      "WRITTEN_ANSWER": "Yozma savol"
     }
     return types[type] || type
   }
@@ -628,8 +627,7 @@ export function QuestionsManagement() {
                     <SelectItem value="all">Barcha turlar</SelectItem>
                     <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlovli</SelectItem>
                     <SelectItem value="SINGLE_CHOICE">Bitta tanlovli</SelectItem>
-                    <SelectItem value="TRUE_FALSE">To'g'ri/Noto'g'ri</SelectItem>
-                    <SelectItem value="ESSAY">Izohli savol</SelectItem>
+                    <SelectItem value="WRITTEN_ANSWER">Yozma savol</SelectItem>
                   </SelectContent>
                 </Select>
                 
@@ -700,8 +698,7 @@ export function QuestionsManagement() {
                   <SelectContent>
                     <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlovli</SelectItem>
                     <SelectItem value="SINGLE_CHOICE">Bitta tanlovli</SelectItem>
-                    <SelectItem value="TRUE_FALSE">To'g'ri/Noto'g'ri</SelectItem>
-                    <SelectItem value="ESSAY">Izohli savol</SelectItem>
+                    <SelectItem value="WRITTEN_ANSWER">Yozma savol</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -895,8 +892,7 @@ export function QuestionsManagement() {
                 <SelectContent>
                   <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlovli</SelectItem>
                   <SelectItem value="SINGLE_CHOICE">Bitta tanlovli</SelectItem>
-                  <SelectItem value="TRUE_FALSE">To'g'ri/Noto'g'ri</SelectItem>
-                  <SelectItem value="ESSAY">Izohli savol</SelectItem>
+                  <SelectItem value="WRITTEN_ANSWER">Yozma savol</SelectItem>
                 </SelectContent>
               </Select>
             </div>
