@@ -2,7 +2,7 @@
 export const config = {
   // API Configuration
   api: {
-    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.kelajakmerosi.uz/',
+    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.kelajakmerosi.uz',
     useMockData: process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true' || process.env.NODE_ENV === 'development',
     timeout: 30000,
     retryAttempts: 3
