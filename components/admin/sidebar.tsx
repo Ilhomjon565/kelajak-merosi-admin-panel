@@ -35,15 +35,6 @@ export function AdminSidebar({ currentPage = "" }: SidebarProps) {
       
       <nav className="flex-1 p-4 space-y-2">
         <Button
-          variant={isCurrentPage("dashboard") ? "default" : "ghost"}
-          className="w-full justify-start"
-          onClick={() => router.push("/admin/dashboard")}
-        >
-          <BarChart3 className="mr-2 h-4 w-4" />
-          Dashboard
-        </Button>
-        
-        <Button
           variant={isCurrentPage("subjects") ? "default" : "ghost"}
           className="w-full justify-start"
           onClick={() => router.push("/admin/subjects")}

@@ -55,7 +55,7 @@ export function LoginForm() {
         localStorage.setItem("admin_authenticated", "true")
         
         setSuccess("Muvaffaqiyatli kirish!")
-        router.push("/admin/dashboard")
+        router.push("/admin/subjects")
       } else {
         setError(response.message || "Kod noto'g'ri")
       }
