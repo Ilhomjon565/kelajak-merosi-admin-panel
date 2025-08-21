@@ -35,7 +35,7 @@ export function SubjectsManagement() {
   const [isLoadingDetails, setIsLoadingDetails] = useState(false)
 
   useEffect(() => {
-    fetch('https://api.bir-zum.uz/api/subject/all?page=0&size=100', {
+    fetch('https://api.kelajakmerosi.uz/api/subject/all?page=0&size=100', {
       headers: {
         'Authorization': `Bearer ${apiService.getAccessToken()}`
       }
@@ -100,7 +100,7 @@ export function SubjectsManagement() {
       const formData = new FormData()
       formData.append('file', file)
       
-      const response = await fetch('https://api.bir-zum.uz/api/subject/image/upload', {
+      const response = await fetch('https://api.kelajakmerosi.uz/api/subject/image/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiService.getAccessToken()}`
@@ -139,7 +139,7 @@ export function SubjectsManagement() {
         }
         
         // API ga yangi subject yuborish
-        const response = await fetch('https://api.bir-zum.uz/api/subject/create', {
+        const response = await fetch('https://api.kelajakmerosi.uz/api/subject/create', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -216,7 +216,7 @@ export function SubjectsManagement() {
 
   // const handleDeleteSubject = async (id: string) => {
   //   try {
-  //     const response = await fetch(`https://api.bir-zum.uz/api/subject/delete/${id}`, {
+  //     const response = await fetch(`https://api.kelajakmerosi.uz/api/subject/delete/${id}`, {
   //       method: 'DELETE',
   //       headers: {
   //         'Authorization': `Bearer ${apiService.getAccessToken()}`
@@ -241,7 +241,7 @@ export function SubjectsManagement() {
     
     try {
       // Fetch subject details using the subjectId
-      const response = await fetch(`https://api.bir-zum.uz/api/template/all/${subject.id}?page=0&size=10`, {
+      const response = await fetch(`https://api.kelajakmerosi.uz/api/template/all/${subject.id}?page=0&size=10`, {
         headers: {
           'Authorization': `Bearer ${apiService.getAccessToken()}`
         }
@@ -280,7 +280,7 @@ export function SubjectsManagement() {
 
   const handleDeleteSubject = async (subjectId: string) => {
     try {
-      const response = await fetch(`https://api.bir-zum.uz/api/subject/delete/${subjectId}`, {
+      const response = await fetch(`https://api.kelajakmerosi.uz/api/subject/delete/${subjectId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${apiService.getAccessToken()}`
@@ -317,7 +317,7 @@ export function SubjectsManagement() {
         }
         
         // API ga yangilangan subject yuborish
-        const response = await fetch(`https://api.bir-zum.uz/api/subject/update/${editingSubject.id}`, {
+        const response = await fetch(`https://api.kelajakmerosi.uz/api/subject/update/${editingSubject.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

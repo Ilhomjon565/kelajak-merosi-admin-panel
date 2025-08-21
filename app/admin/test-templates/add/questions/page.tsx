@@ -112,7 +112,7 @@ function QuestionsPageContent() {
     const handleImageUpload = async (file: File): Promise<string> => {
         const formData = new FormData()
         formData.append("file", file)
-        const res = await fetch("https://api.bir-zum.uz/api/template/image/upload", {
+        const res = await fetch("https://api.kelajakmerosi.uz/api/template/image/upload", {
             method: "POST",
             headers: { Authorization: `Bearer ${apiService.getAccessToken()}` },
             body: formData,

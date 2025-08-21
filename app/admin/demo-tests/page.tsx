@@ -157,7 +157,7 @@ export default function DemoTestsPage() {
       setError(null)
       
       const response = await fetch(
-        `https://api.bir-zum.uz/api/demo/all?page=${currentPage - 1}&size=${pageSize}`,
+        `https://api.kelajakmerosi.uz/api/demo/all?page=${currentPage - 1}&size=${pageSize}`,
         {
           headers: {
             'Authorization': `Bearer ${apiService.getAccessToken()}`
@@ -199,7 +199,7 @@ export default function DemoTestsPage() {
       const formData = new FormData()
       formData.append('file', file)
       
-      const response = await fetch('https://api.bir-zum.uz/api/template/image/upload', {
+      const response = await fetch('https://api.kelajakmerosi.uz/api/template/image/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiService.getAccessToken()}`
@@ -247,7 +247,7 @@ export default function DemoTestsPage() {
         questions: demoQuestions
       }
 
-      const response = await fetch('https://api.bir-zum.uz/api/demo/create', {
+      const response = await fetch('https://api.kelajakmerosi.uz/api/demo/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -294,7 +294,7 @@ export default function DemoTestsPage() {
         questions: demoQuestions
       }
 
-      const response = await fetch(`https://api.bir-zum.uz/api/demo/${selectedTest.id}/update`, {
+      const response = await fetch(`https://api.kelajakmerosi.uz/api/demo/${selectedTest.id}/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -321,7 +321,7 @@ export default function DemoTestsPage() {
     if (!selectedTest) return
     
     try {
-      const response = await fetch(`https://api.bir-zum.uz/api/demo/${selectedTest.id}`, {
+      const response = await fetch(`https://api.kelajakmerosi.uz/api/demo/${selectedTest.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${apiService.getAccessToken()}`

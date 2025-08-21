@@ -97,7 +97,7 @@ function SubjectsPageContent() {
             try {
                 setLoading(true)
                 setError(null)
-                const res = await fetch("https://api.bir-zum.uz/api/subject/all?page=0&size=100", {
+                const res = await fetch("https://api.kelajakmerosi.uz/api/subject/all?page=0&size=100", {
                     headers: { Authorization: `Bearer ${apiService.getAccessToken()}` },
                 })
                 const json = await res.json()
@@ -220,7 +220,7 @@ function SubjectsPageContent() {
                 }))
             }
 
-            const res = await fetch("https://api.bir-zum.uz/api/template/create", {
+            const res = await fetch("https://api.kelajakmerosi.uz/api/template/create", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

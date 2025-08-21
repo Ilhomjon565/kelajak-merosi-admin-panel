@@ -39,7 +39,7 @@ export function SettingsManagement() {
 
   // API settings
   const [apiSettings, setApiSettings] = useState({
-    baseUrl: "https://api.bir-zum.uz/",
+    baseUrl: "https://api.kelajakmerosi.uz/",
     timeout: 30000,
     retryAttempts: 3
   })

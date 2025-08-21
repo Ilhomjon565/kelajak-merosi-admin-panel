@@ -105,7 +105,7 @@ export default function TestTemplateSubjectPage() {
       
       // Fetch test templates for specific subject
       const response = await fetch(
-        `https://api.bir-zum.uz/api/template/all/${subjectId}?page=${currentPage}&size=${pageSize}`,
+        `https://api.kelajakmerosi.uz/api/template/all/${subjectId}?page=${currentPage}&size=${pageSize}`,
         {
           headers: {
             'Authorization': `Bearer ${apiService.getAccessToken()}`

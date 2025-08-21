@@ -144,7 +144,7 @@ export function TestTemplatesManagement() {
       setError(null)
       
       // Fetch test templates from the API endpoint
-      const response = await fetch('https://api.bir-zum.uz/api/template/all', {
+      const response = await fetch('https://api.kelajakmerosi.uz/api/template/all', {
         headers: {
           'Authorization': `Bearer ${apiService.getAccessToken()}`
         }
@@ -216,7 +216,7 @@ export function TestTemplatesManagement() {
       const formData = new FormData()
       formData.append('file', file)
       
-      const response = await fetch('https://api.bir-zum.uz/api/template/image/upload', {
+      const response = await fetch('https://api.kelajakmerosi.uz/api/template/image/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiService.getAccessToken()}`
@@ -279,7 +279,7 @@ export function TestTemplatesManagement() {
       }
 
       // API ga so'rov yuborish
-      const response = await fetch('https://api.bir-zum.uz/api/template/create', {
+      const response = await fetch('https://api.kelajakmerosi.uz/api/template/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -348,7 +348,7 @@ export function TestTemplatesManagement() {
       }
 
       // API ga so'rov yuborish
-      const response = await fetch(`https://api.bir-zum.uz/api/template/update/${selectedTemplate.id}`, {
+      const response = await fetch(`https://api.kelajakmerosi.uz/api/template/update/${selectedTemplate.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -394,7 +394,7 @@ export function TestTemplatesManagement() {
     
     try {
       // API ga so'rov yuborish
-      const response = await fetch(`https://api.bir-zum.uz/api/template/${selectedTemplate.id}`, {
+      const response = await fetch(`https://api.kelajakmerosi.uz/api/template/${selectedTemplate.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${apiService.getAccessToken()}`
