@@ -5,7 +5,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Kelajak meros admin panel',
-  description: 'Kelajak meros admin panel',
+  description: 'Kelajak meros admin panel ',
   generator: 'ilhomjon06.uz',
 }
 
