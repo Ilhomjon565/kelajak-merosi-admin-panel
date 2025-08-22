@@ -202,49 +202,6 @@ export function UsersManagement() {
         {/* Content */}
         <main className="flex-1 p-6 overflow-auto">
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card className="bg-white shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Jami foydalanuvchilar</p>
-                    <p className="text-2xl font-bold text-gray-900">{users.length}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-blue-500">
-                    <Users className="h-6 w-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Test ruxsati berilgan</p>
-                    <p className="text-2xl font-bold text-gray-900">{users.filter(u => u.hasTestAccess).length}</p>
-                    <p className="text-xs text-gray-500">Jami ruxsatlar: {users.reduce((sum, u) => sum + (u.testAccessCount || 0), 0)}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-green-500">
-                    <Unlock className="h-6 w-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Test ruxsati yo'q</p>
-                    <p className="text-2xl font-bold text-gray-900">{users.filter(u => !u.hasTestAccess).length}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-red-500">
-                    <Lock className="h-6 w-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Search and Filter */}
           <Card className="bg-white shadow-sm mb-6">
             <CardContent className="p-6">
@@ -331,7 +288,7 @@ export function UsersManagement() {
                         <TableCell>
                           <div className="flex items-center space-x-3">
                             <Avatar>
-                              <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                              <AvatarFallback>{user.id}</AvatarFallback>
                             </Avatar>
                             <div>
                               <button

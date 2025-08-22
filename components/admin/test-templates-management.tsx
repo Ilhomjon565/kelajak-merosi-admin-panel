@@ -552,32 +552,6 @@ export function TestTemplatesManagement() {
           <h1 className="text-3xl font-bold text-gray-900">Test Shablonlari</h1>
           <p className="text-gray-600 mt-2">Test shablonlarini boshqarish va tahrirlash</p>
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Jami Shablonlar</CardTitle>
-              <Copy className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{testTemplates.length}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">O'rtacha Vaqt</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {Math.round(testTemplates.reduce((acc, t) => acc + t.duration, 0) / testTemplates.length) || 0} min
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Controls */}
         <Card className="mb-6">
           <CardHeader>

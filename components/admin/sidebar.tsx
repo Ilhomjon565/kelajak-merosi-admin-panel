@@ -70,14 +70,14 @@ export function AdminSidebar({ currentPage = "" }: SidebarProps) {
           Foydalanuvchilar
         </Button>
         
-        <Button
+        {/* <Button
           variant={isCurrentPage("settings") ? "default" : "ghost"}
           className="w-full justify-start"
           onClick={() => router.push("/admin/settings")}
         >
           <Settings className="mr-2 h-4 w-4" />
           Sozlamalar
-        </Button>
+        </Button> */}
       </nav>
       
       <div className="p-4 border-t">
