@@ -602,7 +602,7 @@ class ApiService {
   }
   async getUsers(): Promise<ApiResponse<UserProfile[]>> {
     try {
-      return await this.request<UserProfile[]>('/api/access/users?page=0&size=100', {
+      return await this.request<UserProfile[]>('/api/access/users?page=0&size=100000', {
         method: 'GET',
       })
     }
