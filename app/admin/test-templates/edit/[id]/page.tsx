@@ -109,6 +109,21 @@ export default function EditTestTemplatePage() {
 
         setSaving(true)
         try {
+            // Transform questions to match API schema
+            const transformedQuestions = questions.map((question: any) => ({
+                questionType: question.questionType || "SINGLE_CHOICE",
+                questionText: question.questionText || "",
+                writtenAnswer: question.writtenAnswer || "",
+                imageUrl: question.imageUrl || "",
+                youtubeUrl: question.youtubeUrl || "",
+                position: question.position || "",
+                options: (question.testAnswerOptions || []).map((option: any) => ({
+                    answerText: option.answerText || "",
+                    imageUrl: option.imageUrl || "",
+                    isCorrect: option.isCorrect || false
+                }))
+            }))
+
             const payload = {
                 title: form.title,
                 duration: parseInt(form.duration, 10),
@@ -117,10 +132,12 @@ export default function EditTestTemplatePage() {
                     {
                         subjectId: 1, // Default subject ID
                         subjectRole: "MAIN",
-                        testQuestions: questions
+                        testQuestions: transformedQuestions
                     }
                 ]
             }
+
+            console.log("Sending payload:", payload)
 
             const res = await fetch(`https://api.kelajakmerosi.uz/api/template/update/${templateId}`, {
                 method: "PUT",
@@ -132,6 +149,8 @@ export default function EditTestTemplatePage() {
             })
 
             const json = await res.json()
+            console.log("API response:", json)
+            
             if (json?.success) {
                 alert("Test shabloni muvaffaqiyatli yangilandi!")
                 router.push("/admin/test-templates")
@@ -139,6 +158,7 @@ export default function EditTestTemplatePage() {
                 alert(json?.message || "Xatolik yuz berdi")
             }
         } catch (error) {
+            console.error("Error updating template:", error)
             alert("Server bilan bog'lanishda xatolik")
         } finally {
             setSaving(false)
