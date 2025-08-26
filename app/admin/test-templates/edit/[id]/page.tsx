@@ -415,21 +415,67 @@ export default function EditTestTemplatePage() {
 
                                             {/* Image URL */}
                                             <div className="mb-3">
-                                                <label className="block text-sm font-medium mb-1">Rasm URL</label>
-                                                <input
-                                                    type="text"
-                                                    value={question.imageUrl || ""}
-                                                    onChange={(e) => {
-                                                        const newQuestions = [...questions]
-                                                        newQuestions[qIndex] = {
-                                                            ...newQuestions[qIndex],
-                                                            imageUrl: e.target.value
-                                                        }
-                                                        setQuestions(newQuestions)
-                                                    }}
-                                                    placeholder="Rasm URL manzili"
-                                                    className="w-full p-2 border rounded text-sm"
-                                                />
+                                                <label className="block text-sm font-medium mb-1">Savol rasm</label>
+                                                <div className="space-y-2">
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={async (e) => {
+                                                            const file = e.target.files?.[0]
+                                                            if (!file) return
+                                                            
+                                                            try {
+                                                                const formData = new FormData()
+                                                                formData.append("file", file)
+                                                                const res = await fetch("https://api.kelajakmerosi.uz/api/template/image/upload", {
+                                                                    method: "POST",
+                                                                    headers: { Authorization: `Bearer ${apiService.getAccessToken()}` },
+                                                                    body: formData,
+                                                                })
+                                                                const json = await res.json()
+                                                                if (json?.success) {
+                                                                    const newQuestions = [...questions]
+                                                                    newQuestions[qIndex] = {
+                                                                        ...newQuestions[qIndex],
+                                                                        imageUrl: json.data
+                                                                    }
+                                                                    setQuestions(newQuestions)
+                                                                } else {
+                                                                    alert("Rasm yuklashda xatolik")
+                                                                }
+                                                            } catch (error) {
+                                                                alert("Rasm yuklashda xatolik")
+                                                            }
+                                                        }}
+                                                        className="w-full p-2 border rounded text-sm"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={question.imageUrl || ""}
+                                                        onChange={(e) => {
+                                                            const newQuestions = [...questions]
+                                                            newQuestions[qIndex] = {
+                                                                ...newQuestions[qIndex],
+                                                                imageUrl: e.target.value
+                                                            }
+                                                            setQuestions(newQuestions)
+                                                        }}
+                                                        placeholder="Yoki rasm URL manzilini kiriting"
+                                                        className="w-full p-2 border rounded text-sm"
+                                                    />
+                                                </div>
+                                                {question.imageUrl && (
+                                                    <div className="mt-2">
+                                                        <img 
+                                                            src={question.imageUrl} 
+                                                            alt="Savol rasmi" 
+                                                            className="max-w-full h-auto max-h-48 border rounded"
+                                                            onError={(e) => {
+                                                                e.currentTarget.style.display = 'none'
+                                                            }}
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* YouTube URL */}
