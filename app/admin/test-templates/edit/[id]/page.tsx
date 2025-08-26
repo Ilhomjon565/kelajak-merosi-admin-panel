@@ -378,35 +378,102 @@ export default function EditTestTemplatePage() {
                                                     <label className="block text-sm font-medium mb-1">Variantlar</label>
                                                     <div className="space-y-2">
                                                         {(question.testAnswerOptions || []).map((option: any, optIndex: number) => (
-                                                            <div key={optIndex} className="flex items-center gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={option.answerText || ""}
-                                                                    onChange={(e) => {
-                                                                        const newQuestions = [...questions]
-                                                                        newQuestions[qIndex].testAnswerOptions[optIndex] = {
-                                                                            ...newQuestions[qIndex].testAnswerOptions[optIndex],
-                                                                            answerText: e.target.value
-                                                                        }
-                                                                        setQuestions(newQuestions)
-                                                                    }}
-                                                                    placeholder={`Variant ${optIndex + 1}`}
-                                                                    className="flex-1 p-2 border rounded text-sm"
-                                                                />
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={option.isCorrect || false}
-                                                                    onChange={(e) => {
-                                                                        const newQuestions = [...questions]
-                                                                        newQuestions[qIndex].testAnswerOptions[optIndex] = {
-                                                                            ...newQuestions[qIndex].testAnswerOptions[optIndex],
-                                                                            isCorrect: e.target.checked
-                                                                        }
-                                                                        setQuestions(newQuestions)
-                                                                    }}
-                                                                    className="h-4 w-4"
-                                                                />
-                                                                <span className="text-xs text-gray-500">To'g'ri</span>
+                                                            <div key={optIndex} className="p-3 border rounded-lg bg-gray-50">
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={option.answerText || ""}
+                                                                        onChange={(e) => {
+                                                                            const newQuestions = [...questions]
+                                                                            newQuestions[qIndex].testAnswerOptions[optIndex] = {
+                                                                                ...newQuestions[qIndex].testAnswerOptions[optIndex],
+                                                                                answerText: e.target.value
+                                                                            }
+                                                                            setQuestions(newQuestions)
+                                                                        }}
+                                                                        placeholder={`Variant ${optIndex + 1}`}
+                                                                        className="flex-1 p-2 border rounded text-sm"
+                                                                    />
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={option.isCorrect || false}
+                                                                        onChange={(e) => {
+                                                                            const newQuestions = [...questions]
+                                                                            newQuestions[qIndex].testAnswerOptions[optIndex] = {
+                                                                                ...newQuestions[qIndex].testAnswerOptions[optIndex],
+                                                                                isCorrect: e.target.checked
+                                                                            }
+                                                                            setQuestions(newQuestions)
+                                                                        }}
+                                                                        className="h-4 w-4"
+                                                                    />
+                                                                    <span className="text-xs text-gray-500">To'g'ri</span>
+                                                                </div>
+                                                                
+                                                                {/* Option Image */}
+                                                                <div className="mb-2">
+                                                                    <label className="block text-xs font-medium mb-1">Variant rasm</label>
+                                                                    <div className="space-y-2">
+                                                                        <input
+                                                                            type="file"
+                                                                            accept="image/*"
+                                                                            onChange={async (e) => {
+                                                                                const file = e.target.files?.[0]
+                                                                                if (!file) return
+                                                                                
+                                                                                try {
+                                                                                    const formData = new FormData()
+                                                                                    formData.append("file", file)
+                                                                                    const res = await fetch("https://api.kelajakmerosi.uz/api/template/image/upload", {
+                                                                                        method: "POST",
+                                                                                        headers: { Authorization: `Bearer ${apiService.getAccessToken()}` },
+                                                                                        body: formData,
+                                                                                    })
+                                                                                    const json = await res.json()
+                                                                                    if (json?.success) {
+                                                                                        const newQuestions = [...questions]
+                                                                                        newQuestions[qIndex].testAnswerOptions[optIndex] = {
+                                                                                            ...newQuestions[qIndex].testAnswerOptions[optIndex],
+                                                                                            imageUrl: json.data
+                                                                                        }
+                                                                                        setQuestions(newQuestions)
+                                                                                    } else {
+                                                                                        alert("Rasm yuklashda xatolik")
+                                                                                    }
+                                                                                } catch (error) {
+                                                                                    alert("Rasm yuklashda xatolik")
+                                                                                }
+                                                                            }}
+                                                                            className="w-full p-2 border rounded text-xs"
+                                                                        />
+                                                                        <input
+                                                                            type="text"
+                                                                            value={option.imageUrl || ""}
+                                                                            onChange={(e) => {
+                                                                                const newQuestions = [...questions]
+                                                                                newQuestions[qIndex].testAnswerOptions[optIndex] = {
+                                                                                    ...newQuestions[qIndex].testAnswerOptions[optIndex],
+                                                                                    imageUrl: e.target.value
+                                                                                }
+                                                                                setQuestions(newQuestions)
+                                                                            }}
+                                                                            placeholder="Yoki rasm URL manzilini kiriting"
+                                                                            className="w-full p-2 border rounded text-xs"
+                                                                        />
+                                                                    </div>
+                                                                    {option.imageUrl && (
+                                                                        <div className="mt-2">
+                                                                            <img 
+                                                                                src={option.imageUrl} 
+                                                                                alt={`Variant ${optIndex + 1} rasmi`} 
+                                                                                className="max-w-full h-auto max-h-32 border rounded"
+                                                                                onError={(e) => {
+                                                                                    e.currentTarget.style.display = 'none'
+                                                                                }}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         ))}
                                                     </div>
