@@ -7,10 +7,43 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, ArrowLeft, Save } from "lucide-react"
+import { Plus, ArrowLeft, Save, BookOpen, Trash2 } from "lucide-react"
 
 import { apiService } from "@/lib/api"
 import { AdminSidebar } from "@/components/admin/sidebar"
+
+interface TestQuestionOption {
+    id?: number
+    questionId?: number
+    answerText: string
+    imageUrl: string
+    isCorrect: boolean
+}
+
+interface TestQuestion {
+    id?: number
+    testSubjectId?: number
+    questionType: "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "WRITTEN_ANSWER"
+    writtenAnswer: string
+    questionText: string
+    imageUrl: string
+    youtubeUrl: string
+    position: string
+    testAnswerOptions: TestQuestionOption[]
+}
+
+interface Subject {
+    id: number
+    name: string
+    calculator: boolean
+    imageUrl: string
+}
+
+interface SubjectWithQuestions {
+    subject: Subject
+    role: "MAIN" | "SECONDARY"
+    questions: TestQuestion[]
+}
 
 interface TestTemplateForm {
     title: string
@@ -28,8 +61,6 @@ export default function EditTestTemplatePage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
-    const [questions, setQuestions] = useState<any[]>([])
-    const [showQuestions, setShowQuestions] = useState(false)
 
     const [form, setForm] = useState<TestTemplateForm>({
         title: "",
@@ -38,6 +69,7 @@ export default function EditTestTemplatePage() {
         imageUrl: "",
     })
 
+    const [subjectsWithQuestions, setSubjectsWithQuestions] = useState<SubjectWithQuestions[]>([])
     const [selectedImage, setSelectedImage] = useState<File | null>(null)
 
     useEffect(() => {
@@ -66,7 +98,38 @@ export default function EditTestTemplatePage() {
                         imageUrl: templateData.imageUrl || "",
                     })
                     
-                    setQuestions(fetchedQuestions)
+                    // Organize questions by subjects
+                    const subjectsMap = new Map<number, SubjectWithQuestions>()
+                    
+                    // Initialize subjects from template
+                    templateData.subjects?.forEach((subjectData: any) => {
+                        subjectsMap.set(subjectData.subject.id, {
+                            subject: subjectData.subject,
+                            role: subjectData.role,
+                            questions: []
+                        })
+                    })
+                    
+                    // Assign questions to their subjects by matching testSubjectId with subject.id
+                    fetchedQuestions.forEach((question: any) => {
+                        const subjectId = question.testSubjectId
+                        if (subjectsMap.has(subjectId)) {
+                            const subjectData = subjectsMap.get(subjectId)!
+                            subjectData.questions.push(question)
+                        }
+                    })
+                    
+                    // Convert map to array and sort questions by position
+                    const subjectsArray = Array.from(subjectsMap.values())
+                    subjectsArray.forEach(subject => {
+                        subject.questions.sort((a, b) => {
+                            const posA = parseInt(a.position) || 0
+                            const posB = parseInt(b.position) || 0
+                            return posA - posB
+                        })
+                    })
+                    
+                    setSubjectsWithQuestions(subjectsArray)
                 } else {
                     setError("Test shablonini yuklashda xatolik yuz berdi")
                 }
@@ -109,32 +172,28 @@ export default function EditTestTemplatePage() {
 
         setSaving(true)
         try {
-            // Transform questions to match API schema
-            const transformedQuestions = questions.map((question: any) => ({
-                questionType: question.questionType || "SINGLE_CHOICE",
-                questionText: question.questionText || "",
-                writtenAnswer: question.writtenAnswer || "",
-                imageUrl: question.imageUrl || "",
-                youtubeUrl: question.youtubeUrl || "",
-                position: question.position || "",
-                options: (question.testAnswerOptions || []).map((option: any) => ({
-                    answerText: option.answerText || "",
-                    imageUrl: option.imageUrl || "",
-                    isCorrect: option.isCorrect || false
-                }))
-            }))
-
+            // Transform data to match API schema
             const payload = {
                 title: form.title,
                 duration: parseInt(form.duration, 10),
                 price: parseInt(form.price, 10) || 0,
-                testSubjectsAndQuestions: [
-                    {
-                        subjectId: 1, // Default subject ID
-                        subjectRole: "MAIN",
-                        testQuestions: transformedQuestions
-                    }
-                ]
+                testSubjectsAndQuestions: subjectsWithQuestions?.map(subjectData => ({
+                    subjectId: subjectData.subject.id,
+                    subjectRole: subjectData.role,
+                    testQuestions: subjectData.questions?.map(q => ({
+                        questionType: q.questionType,
+                        questionText: q.questionText,
+                        writtenAnswer: q.writtenAnswer,
+                        imageUrl: q.imageUrl,
+                        youtubeUrl: q.youtubeUrl,
+                        position: q.position,
+                        options: q.testAnswerOptions.map(option => ({
+                            answerText: option.answerText,
+                            imageUrl: option.imageUrl,
+                            isCorrect: option.isCorrect
+                        }))
+                    }))
+                }))
             }
 
             console.log("Sending payload:", payload)
@@ -163,6 +222,21 @@ export default function EditTestTemplatePage() {
         } finally {
             setSaving(false)
         }
+    }
+
+    const navigateToQuestions = (subjectIndex: number) => {
+        // Store the current state in localStorage for editing questions
+        console.log(subjectIndex)
+            localStorage.setItem('editTestTemplateData', JSON.stringify({
+                templateId: templateId,
+                title: form.title,
+                duration: form.duration,
+                price: form.price,
+                imageUrl: form.imageUrl,
+                subjectsWithQuestions: subjectsWithQuestions,
+                currentSubjectIndex: subjectIndex
+            }))
+        router.push(`/admin/test-templates/edit/${templateId}/questions?subjectIndex=${subjectIndex}`)
     }
 
     if (loading) {
@@ -214,6 +288,7 @@ export default function EditTestTemplatePage() {
                     <div />
                 </div>
 
+                {/* Basic Information Card */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Asosiy ma'lumotlar</CardTitle>
@@ -277,318 +352,126 @@ export default function EditTestTemplatePage() {
 
                 <div className="h-4" />
 
+                {/* Subjects and Questions Card */}
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center justify-between">
-                            <span>Savollar ({questions?.length || 0})</span>
+                            <span>Fanlar va savollar ({subjectsWithQuestions.length} ta fan)</span>
                             <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => setShowQuestions(!showQuestions)}
+                                onClick={() => router.push(`/admin/test-templates/edit/${templateId}/subjects`)}
                             >
-                                {showQuestions ? "Yashirish" : "Ko'rsatish"}
+                                <Plus className="h-4 w-4 mr-2" />
+                                Fanlarni boshqarish
                             </Button>
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {!showQuestions ? (
-                            <div className="text-center py-6 border-2 border-dashed border-gray-300 rounded-lg">
-                                <p className="text-gray-500 mb-4">Savollarni ko'rish va tahrirlash uchun tugmani bosing</p>
+                        {subjectsWithQuestions.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                                <div className="mb-4">
+                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
+                                        <BookOpen className="h-8 w-8 text-gray-400" />
+                                    </div>
+                                </div>
+                                <p className="text-lg font-medium mb-2">Fanlar topilmadi</p>
+                                <p className="text-sm text-gray-500 mb-4">
+                                    Test shabloniga fanlar va savollar qo'shish uchun "Fanlarni boshqarish" tugmasini bosing.
+                                </p>
                                 <Button 
-                                    onClick={() => setShowQuestions(true)}
+                                    variant="outline"
+                                    onClick={() => router.push(`/admin/test-templates/edit/${templateId}/subjects`)}
                                 >
-                                    <Plus className="h-4 w-4 mr-2" /> Savollarni ko'rsatish
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Fanlarni qo'shish
                                 </Button>
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {Array.isArray(questions) && questions.length > 0 ? (
-                                    questions.map((question: any, qIndex: number) => (
-                                        <div key={qIndex} className="p-4 border rounded-lg bg-white">
-                                            <div className="mb-3">
-                                                <h4 className="font-medium text-gray-900 mb-2">
-                                                    Savol #{qIndex + 1}
-                                                </h4>
+                                {subjectsWithQuestions?.map((subjectData,) => (
+                                    <div key={subjectData.subject.id} className="p-4 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`px-2 py-1 text-xs rounded-full ${
+                                                        subjectData.role === "MAIN" 
+                                                            ? "bg-blue-100 text-blue-800 border border-blue-200" 
+                                                            : "bg-gray-100 text-gray-800 border border-gray-200"
+                                                    }`}>
+                                                        {subjectData.role}
+                                                    </span>
+                                                    <span className="font-medium text-gray-900">
+                                                        {subjectData.subject.name}
+                                                    </span>
+                                                </div>
+                                                <div className="text-sm text-gray-600">
+                                                    {subjectData.questions.length} ta savol
+                                                </div>
                                             </div>
-                                            
-                                            {/* Question Text */}
-                                            <div className="mb-3">
-                                                <label className="block text-sm font-medium mb-1">Savol matni</label>
-                                                <input
-                                                    type="text"
-                                                    value={question.questionText || ""}
-                                                    onChange={(e) => {
-                                                        const newQuestions = [...questions]
-                                                        newQuestions[qIndex] = {
-                                                            ...newQuestions[qIndex],
-                                                            questionText: e.target.value
-                                                        }
-                                                        setQuestions(newQuestions)
-                                                    }}
-                                                    placeholder="Savol matnini kiriting"
-                                                    className="w-full p-2 border rounded text-sm"
-                                                />
-                                            </div>
-
-                                            {/* Question Type */}
-                                            <div className="mb-3">
-                                                <label className="block text-sm font-medium mb-1">Savol turi</label>
-                                                <select
-                                                    value={question.questionType || "SINGLE_CHOICE"}
-                                                    onChange={(e) => {
-                                                        const newQuestions = [...questions]
-                                                        newQuestions[qIndex] = {
-                                                            ...newQuestions[qIndex],
-                                                            questionType: e.target.value
-                                                        }
-                                                        setQuestions(newQuestions)
-                                                    }}
-                                                    className="w-full p-2 border rounded text-sm"
+                                            <div className="flex gap-2">
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm"
+                                                    onClick={() => navigateToQuestions(subjectData.subject.id)}
+                                                    className="bg-white hover:bg-blue-50 border-blue-200 text-blue-700 hover:text-blue-800"
                                                 >
-                                                    <option value="SINGLE_CHOICE">SINGLE_CHOICE</option>
-                                                    <option value="MULTIPLE_CHOICE">MULTIPLE_CHOICE</option>
-                                                    <option value="WRITTEN_ANSWER">WRITTEN_ANSWER</option>
-                                                </select>
-                                            </div>
-
-                                            {/* Written Answer */}
-                                            {question.questionType === "WRITTEN_ANSWER" && (
-                                                <div className="mb-3">
-                                                    <label className="block text-sm font-medium mb-1">Javob matni</label>
-                                                    <input
-                                                        type="text"
-                                                        value={question.writtenAnswer || ""}
-                                                        onChange={(e) => {
-                                                            const newQuestions = [...questions]
-                                                            newQuestions[qIndex] = {
-                                                                ...newQuestions[qIndex],
-                                                                writtenAnswer: e.target.value
-                                                            }
-                                                            setQuestions(newQuestions)
-                                                        }}
-                                                        placeholder="Javob matnini kiriting"
-                                                        className="w-full p-2 border rounded text-sm"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {/* Options */}
-                                            {(question.questionType === "SINGLE_CHOICE" || question.questionType === "MULTIPLE_CHOICE") && (
-                                                <div className="mb-3">
-                                                    <label className="block text-sm font-medium mb-1">Variantlar</label>
-                                                    <div className="space-y-2">
-                                                        {(question.testAnswerOptions || []).map((option: any, optIndex: number) => (
-                                                            <div key={optIndex} className="p-3 border rounded-lg bg-gray-50">
-                                                                <div className="flex items-center gap-2 mb-2">
-                                                                    <input
-                                                                        type="text"
-                                                                        value={option.answerText || ""}
-                                                                        onChange={(e) => {
-                                                                            const newQuestions = [...questions]
-                                                                            newQuestions[qIndex].testAnswerOptions[optIndex] = {
-                                                                                ...newQuestions[qIndex].testAnswerOptions[optIndex],
-                                                                                answerText: e.target.value
-                                                                            }
-                                                                            setQuestions(newQuestions)
-                                                                        }}
-                                                                        placeholder={`Variant ${optIndex + 1}`}
-                                                                        className="flex-1 p-2 border rounded text-sm"
-                                                                    />
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={option.isCorrect || false}
-                                                                        onChange={(e) => {
-                                                                            const newQuestions = [...questions]
-                                                                            newQuestions[qIndex].testAnswerOptions[optIndex] = {
-                                                                                ...newQuestions[qIndex].testAnswerOptions[optIndex],
-                                                                                isCorrect: e.target.checked
-                                                                            }
-                                                                            setQuestions(newQuestions)
-                                                                        }}
-                                                                        className="h-4 w-4"
-                                                                    />
-                                                                    <span className="text-xs text-gray-500">To'g'ri</span>
-                                                                </div>
-                                                                
-                                                                {/* Option Image */}
-                                                                <div className="mb-2">
-                                                                    <label className="block text-xs font-medium mb-1">Variant rasm</label>
-                                                                    <div className="space-y-2">
-                                                                        <input
-                                                                            type="file"
-                                                                            accept="image/*"
-                                                                            onChange={async (e) => {
-                                                                                const file = e.target.files?.[0]
-                                                                                if (!file) return
-                                                                                
-                                                                                try {
-                                                                                    const formData = new FormData()
-                                                                                    formData.append("file", file)
-                                                                                    const res = await fetch("https://api.kelajakmerosi.uz/api/template/image/upload", {
-                                                                                        method: "POST",
-                                                                                        headers: { Authorization: `Bearer ${apiService.getAccessToken()}` },
-                                                                                        body: formData,
-                                                                                    })
-                                                                                    const json = await res.json()
-                                                                                    if (json?.success) {
-                                                                                        const newQuestions = [...questions]
-                                                                                        newQuestions[qIndex].testAnswerOptions[optIndex] = {
-                                                                                            ...newQuestions[qIndex].testAnswerOptions[optIndex],
-                                                                                            imageUrl: json.data
-                                                                                        }
-                                                                                        setQuestions(newQuestions)
-                                                                                    } else {
-                                                                                        alert("Rasm yuklashda xatolik")
-                                                                                    }
-                                                                                } catch (error) {
-                                                                                    alert("Rasm yuklashda xatolik")
-                                                                                }
-                                                                            }}
-                                                                            className="w-full p-2 border rounded text-xs"
-                                                                        />
-                                                                        <input
-                                                                            type="text"
-                                                                            value={option.imageUrl || ""}
-                                                                            onChange={(e) => {
-                                                                                const newQuestions = [...questions]
-                                                                                newQuestions[qIndex].testAnswerOptions[optIndex] = {
-                                                                                    ...newQuestions[qIndex].testAnswerOptions[optIndex],
-                                                                                    imageUrl: e.target.value
-                                                                                }
-                                                                                setQuestions(newQuestions)
-                                                                            }}
-                                                                            placeholder="Yoki rasm URL manzilini kiriting"
-                                                                            className="w-full p-2 border rounded text-xs"
-                                                                        />
-                                                                    </div>
-                                                                    {option.imageUrl && (
-                                                                        <div className="mt-2">
-                                                                            <img 
-                                                                                src={option.imageUrl} 
-                                                                                alt={`Variant ${optIndex + 1} rasmi`} 
-                                                                                className="max-w-full h-auto max-h-32 border rounded"
-                                                                                onError={(e) => {
-                                                                                    e.currentTarget.style.display = 'none'
-                                                                                }}
-                                                                            />
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Image URL */}
-                                            <div className="mb-3">
-                                                <label className="block text-sm font-medium mb-1">Savol rasm</label>
-                                                <div className="space-y-2">
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        onChange={async (e) => {
-                                                            const file = e.target.files?.[0]
-                                                            if (!file) return
-                                                            
-                                                            try {
-                                                                const formData = new FormData()
-                                                                formData.append("file", file)
-                                                                const res = await fetch("https://api.kelajakmerosi.uz/api/template/image/upload", {
-                                                                    method: "POST",
-                                                                    headers: { Authorization: `Bearer ${apiService.getAccessToken()}` },
-                                                                    body: formData,
-                                                                })
-                                                                const json = await res.json()
-                                                                if (json?.success) {
-                                                                    const newQuestions = [...questions]
-                                                                    newQuestions[qIndex] = {
-                                                                        ...newQuestions[qIndex],
-                                                                        imageUrl: json.data
-                                                                    }
-                                                                    setQuestions(newQuestions)
-                                                                } else {
-                                                                    alert("Rasm yuklashda xatolik")
-                                                                }
-                                                            } catch (error) {
-                                                                alert("Rasm yuklashda xatolik")
-                                                            }
-                                                        }}
-                                                        className="w-full p-2 border rounded text-sm"
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        value={question.imageUrl || ""}
-                                                        onChange={(e) => {
-                                                            const newQuestions = [...questions]
-                                                            newQuestions[qIndex] = {
-                                                                ...newQuestions[qIndex],
-                                                                imageUrl: e.target.value
-                                                            }
-                                                            setQuestions(newQuestions)
-                                                        }}
-                                                        placeholder="Yoki rasm URL manzilini kiriting"
-                                                        className="w-full p-2 border rounded text-sm"
-                                                    />
-                                                </div>
-                                                {question.imageUrl && (
-                                                    <div className="mt-2">
-                                                        <img 
-                                                            src={question.imageUrl} 
-                                                            alt="Savol rasmi" 
-                                                            className="max-w-full h-auto max-h-48 border rounded"
-                                                            onError={(e) => {
-                                                                e.currentTarget.style.display = 'none'
-                                                            }}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* YouTube URL */}
-                                            <div className="mb-3">
-                                                <label className="block text-sm font-medium mb-1">YouTube URL</label>
-                                                <input
-                                                    type="text"
-                                                    value={question.youtubeUrl || ""}
-                                                    onChange={(e) => {
-                                                        const newQuestions = [...questions]
-                                                        newQuestions[qIndex] = {
-                                                            ...newQuestions[qIndex],
-                                                            youtubeUrl: e.target.value
-                                                        }
-                                                        setQuestions(newQuestions)
-                                                    }}
-                                                    placeholder="YouTube video URL"
-                                                    className="w-full p-2 border rounded text-sm"
-                                                />
-                                            </div>
-
-                                            {/* Position */}
-                                            <div className="mb-3">
-                                                <label className="block text-sm font-medium mb-1">Pozitsiya</label>
-                                                <input
-                                                    type="text"
-                                                    value={question.position || ""}
-                                                    onChange={(e) => {
-                                                        const newQuestions = [...questions]
-                                                        newQuestions[qIndex] = {
-                                                            ...newQuestions[qIndex],
-                                                            position: e.target.value
-                                                        }
-                                                        setQuestions(newQuestions)
-                                                    }}
-                                                    placeholder="Savol pozitsiyasi"
-                                                    className="w-full p-2 border rounded text-sm"
-                                                />
+                                                    <BookOpen className="h-4 w-4 mr-2" />
+                                                    Savollarni tahrirlash
+                                                </Button>
                                             </div>
                                         </div>
-                                    ))
-                                ) : (
-                                    <div className="text-center py-8 text-gray-500">
-                                        Savollar topilmadi
+                                        
+                                        {/* Questions Preview */}
+                                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                                            {subjectData.questions.length > 0 ? (
+                                                <>
+                                                    {subjectData.questions.slice(0, 5).map((question, qIndex) => (
+                                                        <div key={qIndex} className="p-2 bg-white rounded border text-sm hover:bg-gray-50 transition-colors">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                                                    #{question.position}
+                                                                </span>
+                                                                <span className="text-xs px-2 py-1 bg-gray-100 rounded border">
+                                                                    {question.questionType}
+                                                                </span>
+                                                                {question.testAnswerOptions?.length > 0 && (
+                                                                    <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                                                                        {question.testAnswerOptions.length} ta variant
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-gray-700 line-clamp-2 font-medium">
+                                                                {question.questionText || "Rasmli savol"}
+                                                            </div>
+                                                            <div className="flex gap-2 mt-1">
+                                                                {question.imageUrl && (
+                                                                    <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">
+                                                                        📷 Rasm
+                                                                    </span>
+                                                                )}
+                                                                {question.youtubeUrl && (
+                                                                    <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded border border-red-200">
+                                                                        🎥 Video
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    {subjectData.questions.length > 5 && (
+                                                        <div className="text-center text-xs text-gray-500 py-2 bg-white rounded border">
+                                                            ... va {subjectData.questions.length - 5} ta boshqa savol
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <div className="text-center py-4 text-gray-500 text-sm bg-white rounded border">
+                                                    Bu fanga hali savollar qo'shilmagan
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                )}
+                                ))}
                             </div>
                         )}
                     </CardContent>

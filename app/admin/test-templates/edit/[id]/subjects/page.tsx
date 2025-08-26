@@ -1,83 +1,257 @@
 "use client"
 
 import { useEffect, useState, Suspense } from "react"
-import { useRouter, useParams, useSearchParams } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Save } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Plus, ArrowLeft, Trash2, Save, CheckCircle, BookOpen } from "lucide-react"
 
 import { apiService } from "@/lib/api"
 import { AdminSidebar } from "@/components/admin/sidebar"
 
+interface Subject {
+    id: number
+    name: string
+    calculator: boolean
+    imageUrl: string
+}
+
+interface TestQuestionOption {
+    id?: number
+    questionId?: number
+    answerText: string
+    imageUrl: string
+    isCorrect: boolean
+}
+
+interface TestQuestion {
+    id?: number
+    testSubjectId?: number
+    questionType: "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "WRITTEN_ANSWER"
+    writtenAnswer: string
+    questionText: string
+    imageUrl: string
+    youtubeUrl: string
+    position: string
+    testAnswerOptions: TestQuestionOption[]
+}
+
+interface SubjectWithQuestions {
+    subject: Subject
+    role: "MAIN" | "SECONDARY"
+    questions: TestQuestion[]
+}
+
+interface TestTemplateForm {
+    title: string
+    duration: string
+    price: string
+    imageUrl: string
+}
+
 function SubjectsPageContent() {
     const router = useRouter()
     const params = useParams()
-    const searchParams = useSearchParams()
-    
     const templateId = params.id as string
-    
-    // Get template data from URL params
-    const templateParam = searchParams.get('template')
-    const templateData = templateParam ? JSON.parse(decodeURIComponent(templateParam)) : null
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
-    const [questions, setQuestions] = useState<any[]>([])
 
-    // Debug: Log questions state whenever it changes
-    useEffect(() => {
-        console.log("Questions state changed:", questions)
-        console.log("Questions length in state:", questions.length)
-    }, [questions])
+    const [subjects, setSubjects] = useState<Subject[]>([])
+    const [subjectsWithQuestions, setSubjectsWithQuestions] = useState<SubjectWithQuestions[]>([])
+    const [currentSubject, setCurrentSubject] = useState<SubjectWithQuestions>({
+        subject: { id: 0, name: "", calculator: false, imageUrl: "" },
+        role: "MAIN",
+        questions: []
+    })
+
+    const [form, setForm] = useState<TestTemplateForm>({
+        title: "",
+        duration: "",
+        price: "",
+        imageUrl: "",
+    })
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true)
                 setError(null)
-
-                // Fetch template with questions
-                const templateRes = await fetch(`https://api.kelajakmerosi.uz/api/template/getWithQuestions/${templateId}`, {
-                    headers: { Authorization: `Bearer ${apiService.getAccessToken()}` }
+                
+                // Fetch template data
+                const response = await fetch(`https://api.kelajakmerosi.uz/api/template/getWithQuestions/${templateId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${apiService.getAccessToken()}`
+                    }
                 })
-                const templateJson = await templateRes.json()
                 
-                console.log("Template API response:", templateJson)
+                const result = await response.json()
                 
-                if (templateJson.success) {
-                    const fetchedQuestions = templateJson.data.questions || []
+                if (result.success) {
+                    const templateData = result.data.testTemplate
+                    const fetchedQuestions = result.data.questions || []
                     
-                    console.log("Fetched questions from API:", fetchedQuestions)
-                    console.log("Questions length:", fetchedQuestions.length)
+                    setForm({
+                        title: templateData.title || "",
+                        duration: templateData.duration?.toString() || "",
+                        price: templateData.price?.toString() || "0",
+                        imageUrl: templateData.imageUrl || "",
+                    })
                     
-                    // Set questions state for display
-                    setQuestions(fetchedQuestions || [])
-                    console.log("Questions state set to:", fetchedQuestions)
-                    console.log("Questions state length after set:", fetchedQuestions.length)
+                    // Organize questions by subjects
+                    const subjectsMap = new Map<number, SubjectWithQuestions>()
+                    
+                    // Initialize subjects from template
+                    templateData.subjects?.forEach((subjectData: any) => {
+                        subjectsMap.set(subjectData.subject.id, {
+                            subject: subjectData.subject,
+                            role: subjectData.role,
+                            questions: []
+                        })
+                    })
+                    
+                    // Assign questions to their subjects by matching testSubjectId with subject.id
+                    fetchedQuestions.forEach((question: any) => {
+                        const subjectId = question.testSubjectId
+                        if (subjectsMap.has(subjectId)) {
+                            const subjectData = subjectsMap.get(subjectId)!
+                            subjectData.questions.push(question)
+                        }
+                    })
+                    
+                    // Convert map to array and sort questions by position
+                    const subjectsArray = Array.from(subjectsMap.values())
+                    subjectsArray.forEach(subject => {
+                        subject.questions.sort((a, b) => {
+                            const posA = parseInt(a.position) || 0
+                            const posB = parseInt(b.position) || 0
+                            return posA - posB
+                        })
+                    })
+                    
+                    setSubjectsWithQuestions(subjectsArray)
+                } else {
+                    setError("Test shablonini yuklashda xatolik yuz berdi")
                 }
-            } catch (e: any) {
-                setError(e?.message || "Ma'lumotlarni yuklashda xatolik yuz berdi")
+
+                // Fetch available subjects
+                const subjectsRes = await fetch("https://api.kelajakmerosi.uz/api/subject/all?page=0&size=100", {
+                    headers: { Authorization: `Bearer ${apiService.getAccessToken()}` },
+                })
+                const subjectsJson = await subjectsRes.json()
+                if (subjectsJson?.success) setSubjects(subjectsJson.data ?? [])
+                else throw new Error("Fanlarni yuklashda xatolik")
+                
+            } catch (err: any) {
+                setError(err?.message || "Ma'lumotlarni yuklashda xatolik yuz berdi")
+                console.error("Error fetching data:", err)
             } finally {
                 setLoading(false)
             }
         }
-        fetchData()
+
+        if (templateId) {
+            fetchData()
+        }
     }, [templateId])
 
+    const addSubject = () => {
+        if (!currentSubject.subject.id) {
+            alert("Fan tanlang")
+            return
+        }
+        if (!currentSubject.role) {
+            alert("Fan turini tanlang")
+            return
+        }
+
+        // Check if MAIN role is already taken
+        if (currentSubject.role === "MAIN" && subjectsWithQuestions.some(s => s.role === "MAIN")) {
+            alert("MAIN fan allaqachon qo'shilgan")
+            return
+        }
+
+        const selectedSubject = subjects.find(s => s.id === currentSubject.subject.id)
+        if (!selectedSubject) {
+            alert("Fan topilmadi")
+            return
+        }
+
+        setSubjectsWithQuestions(prev => [...prev, {
+            ...currentSubject,
+            subject: selectedSubject
+        }])
+
+        // Reset form for next subject
+        const hasMainSubject = subjectsWithQuestions.some(s => s.role === "MAIN") || currentSubject.role === "MAIN"
+        setCurrentSubject({
+            subject: { id: 0, name: "", calculator: false, imageUrl: "" },
+            role: hasMainSubject ? "SECONDARY" : "MAIN",
+            questions: []
+        })
+    }
+
+    const removeSubject = (index: number) => {
+        setSubjectsWithQuestions(prev => prev.filter((_, i) => i !== index))
+    }
+
+    const navigateToQuestions = (subjectIndex: number) => {
+        // Store the current state in localStorage
+        localStorage.setItem('editTestTemplateData', JSON.stringify({
+            templateId: templateId,
+            title: form.title,
+            duration: form.duration,
+            price: form.price,
+            imageUrl: form.imageUrl,
+            subjectsWithQuestions: subjectsWithQuestions,
+            currentSubjectIndex: subjectIndex
+        }))
+        
+        router.push(`/admin/test-templates/edit/${templateId}/questions?subjectIndex=${subjectIndex}`)
+    }
+
     const handleSubmit = async () => {
+        if (subjectsWithQuestions.length === 0) {
+            alert("Kamida bitta fan qo'shish kerak")
+            return
+        }
+
+        // Check if there's at least one MAIN subject
+        const hasMainSubject = subjectsWithQuestions.some(s => s.role === "MAIN")
+        if (!hasMainSubject) {
+            alert("Kamida bitta MAIN fan bo'lishi kerak")
+            return
+        }
+
         setSaving(true)
         try {
             const payload = {
-                title: templateData.title,
-                duration: parseInt(templateData.duration, 10),
-                price: parseInt(templateData.price, 10) || 0,
-                testSubjectsAndQuestions: templateData.testTemplate.subjects.map((subject: any) => ({
+                title: form.title,
+                duration: parseInt(form.duration, 10),
+                price: parseInt(form.price, 10) || 0,
+                testSubjectsAndQuestions: subjectsWithQuestions.map(subject => ({
                     subjectId: subject.subject.id,
                     subjectRole: subject.role,
-                    testQuestions: questions
+                    testQuestions: subject.questions.map(q => ({
+                        questionType: q.questionType,
+                        questionText: q.questionText,
+                        writtenAnswer: q.writtenAnswer,
+                        imageUrl: q.imageUrl,
+                        youtubeUrl: q.youtubeUrl,
+                        position: q.position,
+                        options: q.testAnswerOptions.map(option => ({
+                            answerText: option.answerText,
+                            imageUrl: option.imageUrl,
+                            isCorrect: option.isCorrect
+                        }))
+                    }))
                 }))
             }
 
@@ -150,12 +324,15 @@ function SubjectsPageContent() {
                             <ArrowLeft className="h-4 w-4 mr-1" /> Ortga
                         </Button>
                         <div>
-                            <h1 className="text-2xl font-bold">Savollarni tahrirlash</h1>
-                            <p className="text-gray-600">Test shablonidagi savollarni tahrirlang</p>
+                            <h1 className="text-2xl font-bold">Fanlar va savollar</h1>
+                            <p className="text-gray-600">Test shabloniga fanlar va savollar qo'shing</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button onClick={handleSubmit} disabled={saving}>
+                        <Badge variant="outline" className="text-sm">
+                            {subjectsWithQuestions.length} ta fan
+                        </Badge>
+                        <Button onClick={handleSubmit} disabled={saving || subjectsWithQuestions.length === 0}>
                             {saving ? (
                                 <>
                                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -171,190 +348,122 @@ function SubjectsPageContent() {
                     </div>
                 </div>
 
-                {/* Questions List */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Savollar ({questions?.length || 0})</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {Array.isArray(questions) && questions.length > 0 ? (
-                            <div className="space-y-4">
-                                {questions.map((question: any, qIndex: number) => (
-                                    <div key={qIndex} className="p-4 border rounded-lg bg-white">
-                                        <div className="mb-3">
-                                            <h4 className="font-medium text-gray-900 mb-2">
-                                                Savol #{qIndex + 1}
-                                            </h4>
-                                        </div>
-                                        
-                                        {/* Question Text */}
-                                        <div className="mb-3">
-                                            <label className="block text-sm font-medium mb-1">Savol matni</label>
-                                            <input
-                                                type="text"
-                                                value={question.questionText || ""}
-                                                onChange={(e) => {
-                                                    const newQuestions = [...questions]
-                                                    newQuestions[qIndex] = {
-                                                        ...newQuestions[qIndex],
-                                                        questionText: e.target.value
-                                                    }
-                                                    setQuestions(newQuestions)
-                                                }}
-                                                placeholder="Savol matnini kiriting"
-                                                className="w-full p-2 border rounded text-sm"
-                                            />
-                                        </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left Column - Subject Form */}
+                    <div className="lg:col-span-2">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Plus className="h-5 w-5" />
+                                    Yangi fan #{subjectsWithQuestions.length + 1}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {/* Subject Selection */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Fan tanlang *</Label>
+                                        <Select
+                                            value={currentSubject.subject.id ? String(currentSubject.subject.id) : ""}
+                                            onValueChange={(v) => setCurrentSubject({ ...currentSubject, subject: { ...currentSubject.subject, id: parseInt(v) } })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Fan tanlang" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {subjects.map((subject) => (
+                                                    <SelectItem key={subject.id} value={String(subject.id)}>
+                                                        {subject.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Fan turi *</Label>
+                                        <Select
+                                            value={currentSubject.role}
+                                            onValueChange={(v) => setCurrentSubject({ ...currentSubject, role: v as "MAIN" | "SECONDARY" })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Turini tanlang" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="MAIN" disabled={subjectsWithQuestions.some(s => s.role === "MAIN")}>
+                                                    MAIN {subjectsWithQuestions.some(s => s.role === "MAIN") ? "(mavjud)" : ""}
+                                                </SelectItem>
+                                                <SelectItem value="SECONDARY">SECONDARY</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
 
-                                        {/* Question Type */}
-                                        <div className="mb-3">
-                                            <label className="block text-sm font-medium mb-1">Savol turi</label>
-                                            <select
-                                                value={question.questionType || "SINGLE_CHOICE"}
-                                                onChange={(e) => {
-                                                    const newQuestions = [...questions]
-                                                    newQuestions[qIndex] = {
-                                                        ...newQuestions[qIndex],
-                                                        questionType: e.target.value
-                                                    }
-                                                    setQuestions(newQuestions)
-                                                }}
-                                                className="w-full p-2 border rounded text-sm"
-                                            >
-                                                <option value="SINGLE_CHOICE">SINGLE_CHOICE</option>
-                                                <option value="MULTIPLE_CHOICE">MULTIPLE_CHOICE</option>
-                                                <option value="WRITTEN_ANSWER">WRITTEN_ANSWER</option>
-                                            </select>
-                                        </div>
+                                {/* Add Subject Button */}
+                                <Button 
+                                    onClick={addSubject} 
+                                    className="w-full"
+                                    disabled={!currentSubject.subject.id}
+                                >
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Fanni qo'shish
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </div>
 
-                                        {/* Written Answer */}
-                                        {question.questionType === "WRITTEN_ANSWER" && (
-                                            <div className="mb-3">
-                                                <label className="block text-sm font-medium mb-1">Javob matni</label>
-                                                <input
-                                                    type="text"
-                                                    value={question.writtenAnswer || ""}
-                                                    onChange={(e) => {
-                                                        const newQuestions = [...questions]
-                                                        newQuestions[qIndex] = {
-                                                            ...newQuestions[qIndex],
-                                                            writtenAnswer: e.target.value
-                                                        }
-                                                        setQuestions(newQuestions)
-                                                    }}
-                                                    placeholder="Javob matnini kiriting"
-                                                    className="w-full p-2 border rounded text-sm"
-                                                />
-                                            </div>
-                                        )}
-
-                                        {/* Options */}
-                                        {(question.questionType === "SINGLE_CHOICE" || question.questionType === "MULTIPLE_CHOICE") && (
-                                            <div className="mb-3">
-                                                <label className="block text-sm font-medium mb-1">Variantlar</label>
-                                                <div className="space-y-2">
-                                                    {(question.testAnswerOptions || []).map((option: any, optIndex: number) => (
-                                                        <div key={optIndex} className="flex items-center gap-2">
-                                                            <input
-                                                                type="text"
-                                                                value={option.answerText || ""}
-                                                                onChange={(e) => {
-                                                                    const newQuestions = [...questions]
-                                                                    newQuestions[qIndex].testAnswerOptions[optIndex] = {
-                                                                        ...newQuestions[qIndex].testAnswerOptions[optIndex],
-                                                                        answerText: e.target.value
-                                                                    }
-                                                                    setQuestions(newQuestions)
-                                                                }}
-                                                                placeholder={`Variant ${optIndex + 1}`}
-                                                                className="flex-1 p-2 border rounded text-sm"
-                                                            />
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={option.isCorrect || false}
-                                                                onChange={(e) => {
-                                                                    const newQuestions = [...questions]
-                                                                    newQuestions[qIndex].testAnswerOptions[optIndex] = {
-                                                                        ...newQuestions[qIndex].testAnswerOptions[optIndex],
-                                                                        isCorrect: e.target.checked
-                                                                    }
-                                                                    setQuestions(newQuestions)
-                                                                }}
-                                                                className="h-4 w-4"
-                                                            />
-                                                            <span className="text-xs text-gray-500">To'g'ri</span>
-                                                        </div>
-                                                    ))}
+                    {/* Right Column - Subjects List */}
+                    <div className="lg:col-span-1">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <CheckCircle className="h-5 w-5" />
+                                    Qo'shilgan fanlar ({subjectsWithQuestions.length})
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {subjectsWithQuestions.length === 0 ? (
+                                    <div className="text-center py-8 text-gray-500">
+                                        Hali fanlar qo'shilmagan
+                                    </div>
+                                ) : (
+                                    subjectsWithQuestions.map((subject, index) => (
+                                        <div key={index} className="p-3 border rounded-lg bg-gray-50">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-1 flex-1">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <Badge variant={subject.role === "MAIN" ? "default" : "secondary"} className="text-xs">
+                                                            {subject.role}
+                                                        </Badge>
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {subject.questions.length} ta savol
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="text-sm font-medium text-gray-700">{subject.subject.name}</div>
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <Button 
+                                                        variant="outline" 
+                                                        size="sm"
+                                                        onClick={() => navigateToQuestions(subject.subject.id)}
+                                                    >
+                                                        <BookOpen className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button 
+                                                        variant="outline" 
+                                                        size="sm" 
+                                                        onClick={() => removeSubject(index)}
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </Button>
                                                 </div>
                                             </div>
-                                        )}
-
-                                        {/* Image URL */}
-                                        <div className="mb-3">
-                                            <label className="block text-sm font-medium mb-1">Rasm URL</label>
-                                            <input
-                                                type="text"
-                                                value={question.imageUrl || ""}
-                                                onChange={(e) => {
-                                                    const newQuestions = [...questions]
-                                                    newQuestions[qIndex] = {
-                                                        ...newQuestions[qIndex],
-                                                        imageUrl: e.target.value
-                                                    }
-                                                    setQuestions(newQuestions)
-                                                }}
-                                                placeholder="Rasm URL manzili"
-                                                className="w-full p-2 border rounded text-sm"
-                                            />
                                         </div>
-
-                                        {/* YouTube URL */}
-                                        <div className="mb-3">
-                                            <label className="block text-sm font-medium mb-1">YouTube URL</label>
-                                            <input
-                                                type="text"
-                                                value={question.youtubeUrl || ""}
-                                                onChange={(e) => {
-                                                    const newQuestions = [...questions]
-                                                    newQuestions[qIndex] = {
-                                                        ...newQuestions[qIndex],
-                                                        youtubeUrl: e.target.value
-                                                    }
-                                                    setQuestions(newQuestions)
-                                                }}
-                                                placeholder="YouTube video URL"
-                                                className="w-full p-2 border rounded text-sm"
-                                            />
-                                        </div>
-
-                                        {/* Position */}
-                                        <div className="mb-3">
-                                            <label className="block text-sm font-medium mb-1">Pozitsiya</label>
-                                            <input
-                                                type="text"
-                                                value={question.position || ""}
-                                                onChange={(e) => {
-                                                    const newQuestions = [...questions]
-                                                    newQuestions[qIndex] = {
-                                                        ...newQuestions[qIndex],
-                                                        position: e.target.value
-                                                    }
-                                                    setQuestions(newQuestions)
-                                                }}
-                                                placeholder="Savol pozitsiyasi"
-                                                className="w-full p-2 border rounded text-sm"
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-8 text-gray-500">
-                                Savollar topilmadi
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                                    ))
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
             </div>
 
             {isSidebarOpen && (
@@ -376,7 +485,7 @@ function SubjectsPageLoading() {
     )
 }
 
-export default function SubjectsPage() {
+export default function EditSubjectsPage() {
     return (
         <Suspense fallback={<SubjectsPageLoading />}>
             <SubjectsPageContent />
