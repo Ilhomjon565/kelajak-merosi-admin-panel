@@ -36,7 +36,7 @@ interface AuthResponse {
 }
 
 interface UserProfile {
-  userId: number
+  id: number
   fullName: string
   phoneNumber: string
 }
@@ -602,7 +602,7 @@ class ApiService {
   }
   async getUsers(): Promise<ApiResponse<UserProfile[]>> {
     try {
-      return await this.request<UserProfile[]>('/api/access/users?page=0&size=100000', {
+      return await this.request<UserProfile[]>('/api/access/users?page=0&size=999999', {
         method: 'GET',
       })
     }

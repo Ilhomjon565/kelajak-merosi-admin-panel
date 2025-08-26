@@ -12,13 +12,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
   Plus, 
   Search, 
@@ -33,7 +29,11 @@ import {
   Users,
   BookOpen,
   Settings,
-  BarChart3
+  BarChart3,
+  FileText,
+  List,
+  Clock,
+  DollarSign
 } from "lucide-react"
 import { apiService } from "@/lib/api"
 import { AdminSidebar } from "./sidebar"
@@ -51,60 +51,6 @@ interface TestTemplate {
       imageUrl: string
     }
     role: string
-  }>
-  questions?: Array<{
-    id: number
-    testSubjectId: number
-    questionType: string
-    writtenAnswer: string
-    questionText: string
-    imageUrl: string
-    youtubeUrl: string
-    position: string
-    options: Array<{
-      id: number
-      questionId: number
-      answerText: string
-      imageUrl: string
-      isCorrect: boolean
-    }>
-  }>
-}
-
-interface CreateTestTemplateRequest {
-  title: string
-  duration: number
-  price: number
-  testSubjectsAndQuestions: Array<{
-    subjectId: number
-    subjectRole: string
-    testQuestions: Array<{
-      questionType: string
-      questionText: string
-      writtenAnswer: string
-      imageUrl: string
-      youtubeUrl: string
-      position: string
-      options: Array<{
-        answerText: string
-        imageUrl: string
-        isCorrect: boolean
-      }>
-    }>
-  }>
-}
-
-interface TestQuestion {
-  questionType: string
-  questionText: string
-  writtenAnswer: string
-  imageUrl: string
-  youtubeUrl: string
-  position: string
-  options: Array<{
-    answerText: string
-    imageUrl: string
-    isCorrect: boolean
   }>
 }
 
@@ -124,14 +70,9 @@ export function TestTemplatesManagement() {
   
   const [searchTerm, setSearchTerm] = useState("")
   const [subjectFilter, setSubjectFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<TestTemplate | null>(null)
-  const [selectedImage, setSelectedImage] = useState<File | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
   
   // Fetch data from API
   useEffect(() => {
@@ -160,7 +101,8 @@ export function TestTemplatesManagement() {
           title: template.title,
           duration: template.duration,
           price: template.price,
-          subjects: template.subjects || []
+          subjects: template.subjects || [],
+          testSubjectsAndQuestions: template.testSubjectsAndQuestions || []
         }))
         setTestTemplates(templates)
         
@@ -185,59 +127,8 @@ export function TestTemplatesManagement() {
       setLoading(false)
     }
   }
-  
-  const [newTemplate, setNewTemplate] = useState({
-    title: "",
-    subjectId: "",
-    duration: "",
-    price: "0",
-    imageUrl: ""
-  })
-  
-  const [testQuestions, setTestQuestions] = useState<TestQuestion[]>([])
-  const [isAddQuestionDialogOpen, setIsAddQuestionDialogOpen] = useState(false)
-  const [currentQuestion, setCurrentQuestion] = useState<TestQuestion>({
-    questionType: "SINGLE_CHOICE",
-    questionText: "",
-    writtenAnswer: "",
-    imageUrl: "",
-    youtubeUrl: "",
-    position: "",
-    options: [
-      { answerText: "", imageUrl: "", isCorrect: false },
-      { answerText: "", imageUrl: "", isCorrect: false },
-      { answerText: "", imageUrl: "", isCorrect: false },
-      { answerText: "", imageUrl: "", isCorrect: false }
-    ]
-  })
 
-  const handleImageUpload = async (file: File): Promise<string> => {
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      
-      const response = await fetch('https://api.kelajakmerosi.uz/api/template/image/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiService.getAccessToken()}`
-        },
-        body: formData
-      })
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        // API response: { "success": true, "status": 200, "data": "https://..." }
-        // data field directly contains the image URL
-        return result.data
-      } else {
-        throw new Error(result.message || 'Rasm yuklashda xatolik')
-      }
-    } catch (error) {
-      console.error('Rasm yuklashda xatolik:', error)
-      throw error
-    }
-  }
+
 
   const filteredTemplates = testTemplates.filter(template => {
     const matchesSearch = template.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -247,153 +138,14 @@ export function TestTemplatesManagement() {
     return matchesSearch && matchesSubject
   })
 
-  const handleAddTemplate = async () => {
-    if (!newTemplate.title || !newTemplate.subjectId || !newTemplate.duration) {
-      return
-    }
 
-    try {
-      setIsUploading(true)
-      
-      // Agar rasm tanlangan bo'lsa, uni yuklash
-      let imageUrl = ""
-      if (selectedImage) {
-        try {
-          imageUrl = await handleImageUpload(selectedImage)
-        } catch (error) {
-          console.error('Rasm yuklashda xatolik:', error)
-          // Rasm yuklanmasa ham template yaratish davom etadi
-        }
-      }
 
-      // API strukturasiga mos ravishda ma'lumotlarni tayyorlash
-      const templateData: CreateTestTemplateRequest = {
-        title: newTemplate.title,
-        duration: parseInt(newTemplate.duration),
-        price: parseInt(newTemplate.price),
-        testSubjectsAndQuestions: [{
-          subjectId: parseInt(newTemplate.subjectId),
-          subjectRole: 'MAIN',
-          testQuestions: testQuestions // Test savollarini qo'shamiz
-        }]
-      }
 
-      // API ga so'rov yuborish
-      const response = await fetch('https://api.kelajakmerosi.uz/api/template/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiService.getAccessToken()}`
-        },
-        body: JSON.stringify(templateData)
-      })
-
-      const result = await response.json()
-      
-      if (result.success) {
-        // Yangi template ni local state ga qo'shish
-        const newTemplateFromAPI: TestTemplate = {
-          id: result.data.id.toString(),
-          title: newTemplate.title,
-          duration: parseInt(newTemplate.duration),
-          price: parseInt(newTemplate.price),
-          subjects: [{
-            subject: {
-              id: parseInt(newTemplate.subjectId),
-              name: subjects.find(s => s.id === parseInt(newTemplate.subjectId))?.name || '',
-              calculator: subjects.find(s => s.id === parseInt(newTemplate.subjectId))?.calculator || false,
-              imageUrl: subjects.find(s => s.id === parseInt(newTemplate.subjectId))?.imageUrl || ''
-            },
-            role: 'MAIN'
-          }]
-        }
-        
-        setTestTemplates([...testTemplates, newTemplateFromAPI])
-        setNewTemplate({
-          title: "",
-          subjectId: "",
-          duration: "",
-          price: "0",
-          imageUrl: ""
-        })
-        setSelectedImage(null)
-        setTestQuestions([])
-        setIsAddDialogOpen(false)
-      } else {
-        console.error('Template yaratishda xatolik:', result.message)
-      }
-    } catch (err) {
-      console.error("Error adding template:", err)
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleEditTemplate = async () => {
-    if (!selectedTemplate || !newTemplate.title || !newTemplate.subjectId || !newTemplate.duration) {
-      return
-    }
-
-    try {
-      // API strukturasiga mos ravishda ma'lumotlarni tayyorlash
-      const templateData: CreateTestTemplateRequest = {
-        title: newTemplate.title,
-        duration: parseInt(newTemplate.duration),
-        price: parseInt(newTemplate.price),
-        testSubjectsAndQuestions: [{
-          subjectId: parseInt(newTemplate.subjectId),
-          subjectRole: 'MAIN',
-          testQuestions: testQuestions // Test savollarini qo'shamiz
-        }]
-      }
-
-      // API ga so'rov yuborish
-      const response = await fetch(`https://api.kelajakmerosi.uz/api/template/update/${selectedTemplate.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiService.getAccessToken()}`
-        },
-        body: JSON.stringify(templateData)
-      })
-
-      const result = await response.json()
-      
-      if (result.success) {
-        // Local state ni yangilash
-        setTestTemplates(testTemplates.map(template =>
-          template.id === selectedTemplate.id ? {
-            ...template,
-            title: newTemplate.title,
-            duration: parseInt(newTemplate.duration),
-            price: parseInt(newTemplate.price),
-            subjects: [{
-              subject: {
-                id: parseInt(newTemplate.subjectId),
-                name: subjects.find(s => s.id === parseInt(newTemplate.subjectId))?.name || '',
-                calculator: subjects.find(s => s.id === parseInt(newTemplate.subjectId))?.calculator || false,
-                imageUrl: subjects.find(s => s.id === parseInt(newTemplate.subjectId))?.imageUrl || ''
-              },
-              role: 'MAIN'
-            }]
-          } : template
-        ))
-        
-        setIsEditDialogOpen(false)
-        setSelectedTemplate(null)
-      } else {
-        console.error('Template yangilashda xatolik:', result.message)
-      }
-    } catch (err) {
-      console.error("Error updating template:", err)
-    }
-  }
 
   const handleDeleteTemplate = async () => {
     if (!selectedTemplate) return
     
     try {
-      // API ga so'rov yuborish
       const response = await fetch(`https://api.kelajakmerosi.uz/api/template/${selectedTemplate.id}`, {
         method: 'DELETE',
         headers: {
@@ -404,7 +156,6 @@ export function TestTemplatesManagement() {
       const result = await response.json()
       
       if (result.success) {
-        // Local state dan o'chirish
         setTestTemplates(testTemplates.filter(template => template.id !== selectedTemplate.id))
         setIsDeleteDialogOpen(false)
         setSelectedTemplate(null)
@@ -416,72 +167,9 @@ export function TestTemplatesManagement() {
     }
   }
 
-  const openEditDialog = (template: TestTemplate) => {
-    setSelectedTemplate(template)
-    setNewTemplate({
-      title: template.title,
-      subjectId: template.subjects[0]?.subject.id.toString() || '',
-      duration: template.duration.toString(),
-      price: template.price.toString(),
-      imageUrl: ""
-    })
-    setIsEditDialogOpen(true)
-  }
-
   const openDeleteDialog = (template: TestTemplate) => {
     setSelectedTemplate(template)
     setIsDeleteDialogOpen(true)
-  }
-
-  const addTestQuestion = () => {
-    if (currentQuestion.questionText.trim() && currentQuestion.options.some(opt => opt.answerText.trim())) {
-      setTestQuestions([...testQuestions, { ...currentQuestion }])
-      setCurrentQuestion({
-        questionType: "SINGLE_CHOICE",
-        questionText: "",
-        writtenAnswer: "",
-        imageUrl: "",
-        youtubeUrl: "",
-        position: "",
-        options: [
-          { answerText: "", imageUrl: "", isCorrect: false },
-          { answerText: "", imageUrl: "", isCorrect: false },
-          { answerText: "", imageUrl: "", isCorrect: false },
-          { answerText: "", imageUrl: "", isCorrect: false }
-        ]
-      })
-      setIsAddQuestionDialogOpen(false)
-    }
-  }
-
-  const removeTestQuestion = (index: number) => {
-    setTestQuestions(testQuestions.filter((_, i) => i !== index))
-  }
-
-  const updateQuestionOption = (questionIndex: number, optionIndex: number, field: 'answerText' | 'imageUrl' | 'isCorrect', value: string | boolean) => {
-    const updatedQuestions = [...testQuestions]
-    if (field === 'isCorrect') {
-      // Only one option can be correct for single choice
-      updatedQuestions[questionIndex].options.forEach((opt, i) => {
-        opt.isCorrect = i === optionIndex ? value as boolean : false
-      })
-    } else {
-      updatedQuestions[questionIndex].options[optionIndex][field] = value as string
-    }
-    setTestQuestions(updatedQuestions)
-  }
-
-  const updateCurrentQuestionOption = (optionIndex: number, field: 'answerText' | 'imageUrl' | 'isCorrect', value: string | boolean) => {
-    const updatedQuestion = { ...currentQuestion }
-    if (field === 'isCorrect') {
-      // Only one option can be correct for single choice
-      updatedQuestion.options.forEach((opt, i) => {
-        opt.isCorrect = i === optionIndex ? value as boolean : false
-      })
-    } else {
-      updatedQuestion.options[optionIndex][field] = value as string
-    }
-    setCurrentQuestion(updatedQuestion)
   }
 
 
@@ -523,9 +211,6 @@ export function TestTemplatesManagement() {
     )
   }
 
-
-
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Sidebar Toggle */}
@@ -552,6 +237,7 @@ export function TestTemplatesManagement() {
           <h1 className="text-3xl font-bold text-gray-900">Test Shablonlari</h1>
           <p className="text-gray-600 mt-2">Test shablonlarini boshqarish va tahrirlash</p>
         </div>
+        
         {/* Controls */}
         <Card className="mb-6">
           <CardHeader>
@@ -601,16 +287,7 @@ export function TestTemplatesManagement() {
                   </SelectContent>
                 </Select>
                 
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Holat bo'yicha" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Barcha holatlar</SelectItem>
-                    <SelectItem value="active">Faol</SelectItem>
-                    <SelectItem value="inactive">Faol emas</SelectItem>
-                  </SelectContent>
-                </Select>
+                
               </div>
             </div>
           </CardContent>
@@ -628,6 +305,20 @@ export function TestTemplatesManagement() {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <CardTitle className="text-lg">{template.title}</CardTitle>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {template.duration} daqiqa
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <DollarSign className="h-3 w-3 mr-1" />
+                        {template.price} so'm
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <BookOpen className="h-3 w-3 mr-1" />
+                        {template.subjects.length} fan
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -635,15 +326,15 @@ export function TestTemplatesManagement() {
               <CardContent>
                 <div className="flex items-center justify-between">
                   <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => openEditDialog(template)}
-                    >
-                      <Edit className="mr-2 h-3 w-3" />
-                      Tahrirlash
-                    </Button>
+                                         <Button
+                       variant="outline"
+                       size="sm"
+                       className="flex-1"
+                       onClick={() => router.push(`/admin/test-templates/edit/${template.id}`)}
+                     >
+                       <Edit className="mr-2 h-3 w-3" />
+                       Tahrirlash
+                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -658,91 +349,20 @@ export function TestTemplatesManagement() {
           ))}
         </div>
 
-        {filteredTemplates.length === 0 && (
-          <Card className="text-center py-12">
-            <CardContent>
-              <p className="text-gray-500 text-lg">
-                {searchTerm || subjectFilter || statusFilter 
-                  ? "Qidiruv natijalariga mos keladigan shablonlar topilmadi"
-                  : "Hali hech qanday test shabloni qo'shilmagan"}
-              </p>
-            </CardContent>
-          </Card>
-        )}
+                 {filteredTemplates.length === 0 && (
+           <Card className="text-center py-12">
+             <CardContent>
+               <p className="text-gray-500 text-lg">
+                 {searchTerm || subjectFilter 
+                   ? "Qidiruv natijalariga mos keladigan shablonlar topilmadi"
+                   : "Hali hech qanday test shabloni qo'shilmagan"}
+               </p>
+             </CardContent>
+           </Card>
+         )}
       </div>
 
-      {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Test Shablonini Tahrirlash</DialogTitle>
-            <DialogDescription>
-              Test shablonini tahrirlang
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-title">Nomi</Label>
-              <Input
-                id="edit-title"
-                value={newTemplate.title}
-                onChange={(e) => setNewTemplate({...newTemplate, title: e.target.value})}
-                placeholder="Test nomi"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="edit-subject">Fan</Label>
-              <Select value={newTemplate.subjectId} onValueChange={(value) => setNewTemplate({...newTemplate, subjectId: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Fan tanlang" />
-                </SelectTrigger>
-                <SelectContent>
-                  {subjects.map(subject => (
-                    <SelectItem key={subject.id} value={subject.id.toString()}>
-                      {subject.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="edit-duration">Vaqt chegarasi (minut)</Label>
-              <Input
-                id="edit-duration"
-                type="number"
-                value={newTemplate.duration}
-                onChange={(e) => setNewTemplate({...newTemplate, duration: e.target.value})}
-                placeholder="60"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="edit-price">Narx</Label>
-              <Input
-                id="edit-price"
-                type="number"
-                value={newTemplate.price}
-                onChange={(e) => setNewTemplate({...newTemplate, price: e.target.value})}
-                placeholder="0"
-              />
-            </div>
-          </div>
-          
-
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Bekor qilish
-            </Button>
-            <Button onClick={handleEditTemplate}>
-              Saqlash
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -762,178 +382,6 @@ export function TestTemplatesManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Add Question Dialog */}
-      <Dialog open={isAddQuestionDialogOpen} onOpenChange={setIsAddQuestionDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Yangi Test Savolini Qo'shish</DialogTitle>
-            <DialogDescription>
-              Test shabloniga yangi savol qo'shing
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-6">
-            {/* Question Basic Info */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="questionType">Savol turi</Label>
-                <Select 
-                  value={currentQuestion.questionType} 
-                  onValueChange={(value) => setCurrentQuestion({...currentQuestion, questionType: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SINGLE_CHOICE">Bitta tanlash</SelectItem>
-                    <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlash</SelectItem>
-                    <SelectItem value="WRITTEN">Yozma javob</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="position">Pozitsiya</Label>
-                <Input
-                  id="position"
-                  value={currentQuestion.position}
-                  onChange={(e) => setCurrentQuestion({...currentQuestion, position: e.target.value})}
-                  placeholder="1, 2, 3..."
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="questionText">Savol matni</Label>
-              <Textarea
-                id="questionText"
-                value={currentQuestion.questionText}
-                onChange={(e) => setCurrentQuestion({...currentQuestion, questionText: e.target.value})}
-                placeholder="Savol matnini kiriting..."
-                rows={3}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="writtenAnswer">Yozma javob (ixtiyoriy)</Label>
-              <Textarea
-                id="writtenAnswer"
-                value={currentQuestion.writtenAnswer}
-                onChange={(e) => setCurrentQuestion({...currentQuestion, writtenAnswer: e.target.value})}
-                placeholder="Yozma javob uchun..."
-                rows={2}
-              />
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="questionImageFile">Savol rasm fayli</Label>
-                <Input
-                  id="questionImageFile"
-                  type="file"
-                  accept="image/*"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      try {
-                        const imageUrl = await handleImageUpload(file)
-                        setCurrentQuestion({...currentQuestion, imageUrl})
-                      } catch (error) {
-                        console.error('Savol rasm yuklashda xatolik:', error)
-                      }
-                    }
-                  }}
-                  className="cursor-pointer"
-                />
-                {currentQuestion.imageUrl && (
-                  <p className="text-xs text-green-600 mt-1">
-                    Rasm yuklandi: {currentQuestion.imageUrl}
-                  </p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="youtubeUrl">YouTube URL (ixtiyoriy)</Label>
-                <Input
-                  id="youtubeUrl"
-                  value={currentQuestion.youtubeUrl}
-                  onChange={(e) => setCurrentQuestion({...currentQuestion, youtubeUrl: e.target.value})}
-                  placeholder="https://youtube.com/watch?v=..."
-                />
-              </div>
-            </div>
-            
-            {/* Options Section */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-base font-medium">Javob variantlari</Label>
-                <span className="text-sm text-gray-500">
-                  {currentQuestion.questionType === 'SINGLE_CHOICE' ? 'Bitta to\'g\'ri javob tanlang' : 'Ko\'p to\'g\'ri javob tanlash mumkin'}
-                </span>
-              </div>
-              
-              <div className="space-y-2">
-                {currentQuestion.options.map((option, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 border rounded-lg">
-                    <input
-                      type={currentQuestion.questionType === 'SINGLE_CHOICE' ? 'radio' : 'checkbox'}
-                      name="correctOption"
-                      checked={option.isCorrect}
-                      onChange={() => updateCurrentQuestionOption(index, 'isCorrect', !option.isCorrect)}
-                      className="text-blue-600 flex-shrink-0"
-                    />
-                    
-                    <div className="flex-1 space-y-1">
-                      <Input
-                        placeholder={`Variant ${index + 1} matni`}
-                        value={option.answerText}
-                        onChange={(e) => updateCurrentQuestionOption(index, 'answerText', e.target.value)}
-                        className="text-sm"
-                      />
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0]
-                          if (file) {
-                            try {
-                              const imageUrl = await handleImageUpload(file)
-                              updateCurrentQuestionOption(index, 'imageUrl', imageUrl)
-                            } catch (error) {
-                              console.error('Variant rasm yuklashda xatolik:', error)
-                            }
-                          }
-                        }}
-                        className="text-sm cursor-pointer"
-                        placeholder="Rasm fayli"
-                      />
-                      {option.imageUrl && (
-                        <p className="text-xs text-green-600">
-                          Rasm yuklandi: {option.imageUrl}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <Badge variant={option.isCorrect ? "default" : "secondary"} className="text-xs flex-shrink-0">
-                      {option.isCorrect ? '✓' : '✗'}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddQuestionDialogOpen(false)}>
-              Bekor qilish
-            </Button>
-            <Button onClick={addTestQuestion}>
-              Savolni Qo'shish
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Overlay for mobile sidebar */}
       {isSidebarOpen && (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,8 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Users, Menu, Plus, Edit, Trash2, Search, Lock, Unlock } from "lucide-react"
-import { apiService, TestTemplate } from "@/lib/api"
+import { Users, Menu, Plus, Edit, Trash2, Search, Lock, Unlock, Loader2 } from "lucide-react"
+import { apiService, TestTemplate, UserProfile } from "@/lib/api"
 import { AdminSidebar } from "./sidebar"
 import Link from "next/link"
 
@@ -31,71 +31,22 @@ export function UsersManagement() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [users, setUsers] = useState<User[]>([])
   const [testTemplates, setTestTemplates] = useState<TestTemplate[]>([])
-
-  useEffect(() => {
-    // Get users and their test access data
-    const loadUsersWithAccess = async () => {
-      try {
-        const res = await apiService.getUsers()
-        console.log(res.data)
-
-        // Fetch test access data for each user
-        const usersWithAccess = await Promise.all(
-          res.data.map(async (userProfile: any) => {
-            try {
-              const accessRes = await apiService.getUserAccess(userProfile.id.toString())
-              let hasTestAccess = false
-              let testAccessCount = 0
-
-              if (accessRes.success && accessRes.data && accessRes.data.length > 0) {
-                const userAccessData = accessRes.data[0]
-                const testTemplatesData = userAccessData.testTemplates || []
-                hasTestAccess = testTemplatesData.length > 0
-                testAccessCount = testTemplatesData.length
-              }
-
-              return {
-                id: userProfile.id.toString(),
-                name: userProfile.fullName,
-                phone: userProfile.phoneNumber,
-                hasTestAccess,
-                testAccessTemplate: undefined,
-                testAccessCount
-              }
-            } catch (error) {
-              console.error(`Error fetching access for user ${userProfile.id}:`, error)
-              return {
-                id: userProfile.id.toString(),
-                name: userProfile.fullName,
-                phone: userProfile.phoneNumber,
-                hasTestAccess: false,
-                testAccessTemplate: undefined,
-                testAccessCount: 0
-              }
-            }
-          })
-        )
-
-        setUsers(usersWithAccess)
-      } catch (error) {
-        console.error("Error fetching users:", error)
-      }
-    }
-
-    loadUsersWithAccess()
-
-    // Get test templates
-    apiService.getTestTemplates().then((res) => {
-      console.log("Test templates:", res.data)
-      setTestTemplates(res.data)
-    }).catch((error) => {
-      console.error("Error fetching test templates:", error)
-      // Fallback test templates if API fails
-      setTestTemplates([])
-    })
-  }, [])
-
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
+  const [isLoadingAccess, setIsLoadingAccess] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
+  const [apiStatus, setApiStatus] = useState<'loading' | 'success' | 'error' | 'no-data'>('loading')
+
+  // Debounced search to improve performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [newUser, setNewUser] = useState({
@@ -105,20 +56,87 @@ export function UsersManagement() {
 
   const router = useRouter()
 
-  const filteredUsers = users.filter(user => {
-    if (searchTerm === "access") {
-      return user.hasTestAccess
-    }
-    if (searchTerm === "no-access") {
-      return !user.hasTestAccess
-    }
-    if (searchTerm === "") {
-      return true
-    }
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.phone.includes(searchTerm)
-    return matchesSearch
+  // Helper function to map UserProfile to User
+  const mapUserProfileToUser = (userProfile: UserProfile): User => ({
+    id: userProfile.id.toString(),
+    name: userProfile.fullName,
+    phone: userProfile.phoneNumber,
+    hasTestAccess: false, // Default value, will be updated when we fetch access data
+    testAccessTemplate: undefined,
+    testAccessCount: 0
   })
+
+  // Memoized filtered users to prevent unnecessary recalculations
+  const filteredUsers = useMemo(() => {
+    if (debouncedSearchTerm === "") {
+      return users
+    }
+    return users.filter(user => {
+      const searchLower = debouncedSearchTerm.toLowerCase()
+      const matchesId = user.id.toLowerCase().includes(searchLower)
+      const matchesName = user.name.toLowerCase().includes(searchLower)
+      const matchesPhone = user.phone.includes(debouncedSearchTerm)
+      return matchesId || matchesName || matchesPhone
+    })
+  }, [users, debouncedSearchTerm])
+
+  // Optimized data loading with error handling
+  const loadUsersWithAccess = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      
+      // Try to fetch all users with a very large size limit
+      let res = await apiService.getUsers()
+      
+      console.log("API Response:", res)
+      console.log("Response data:", res.data)
+      console.log("Data type:", typeof res.data)
+      console.log("Is array:", Array.isArray(res.data))
+      console.log("Data length:", res.data?.length)
+      
+      // Check if API response is successful and has data
+      if (res.success && res.data && Array.isArray(res.data) && res.data.length > 0) {
+        // Map UserProfile to User with default values
+        const mappedUsers = res.data.map(mapUserProfileToUser)
+        console.log("Mapped users:", mappedUsers)
+        setUsers(mappedUsers)
+        setApiStatus('success')
+      } else {
+        console.log("No data or invalid response")
+        setApiStatus('no-data')
+        setUsers([])
+      }
+      
+      setIsLoadingAccess(false)
+      
+    } catch (error) {
+      console.error("Error loading users:", error)
+      setApiStatus('error')
+      setUsers([])
+      setIsLoadingAccess(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  const loadTestTemplates = useCallback(async () => {
+    try {
+      setIsLoadingTemplates(true)
+      const res = await apiService.getTestTemplates()
+      setTestTemplates(res.data || [])
+    } catch (error) {
+      console.error("Error fetching test templates:", error)
+      setTestTemplates([])
+    } finally {
+      setIsLoadingTemplates(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    // Load users first, then templates in parallel
+    loadUsersWithAccess()
+    loadTestTemplates()
+  }, [loadUsersWithAccess, loadTestTemplates])
 
   const handleAddUser = () => {
     if (newUser.name.trim() && newUser.phone.trim()) {
@@ -135,37 +153,20 @@ export function UsersManagement() {
     }
   }
 
-  const handleEditUser = async () => {
-    if (editingUser && editingUser.name.trim() && editingUser.phone.trim()) {
-      try {
-        // API orqali user'ni yangilash
-        const response = await apiService.updateUser(editingUser.id, {
-          fullName: editingUser.name,
-          phoneNumber: editingUser.phone
-        })
-
-        if (response.success) {
-          // Local state'ni yangilash
-          setUsers(users.map(user =>
-            user.id === editingUser.id ? editingUser : user
-          ))
-          setEditingUser(null)
-
-          // Success message ko'rsatish (toast yoki alert)
-          console.log('Foydalanuvchi muvaffaqiyatli yangilandi')
-        } else {
-          console.error('Foydalanuvchini yangilashda xatolik:', response.message)
-        }
-      } catch (error) {
-        console.error('API xatoligi:', error)
-        // Error handling - user'ga xabar berish
-      }
-    }
-  }
-
-  const handleDeleteUser = (id: string) => {
-    setUsers(users.filter(user => user.id !== id))
-  }
+  // Loading skeleton component
+  const LoadingSkeleton = () => (
+    <div className="space-y-3">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="flex items-center space-x-3 animate-pulse">
+          <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+            <div className="h-3 bg-gray-200 rounded w-1/3"></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -201,7 +202,6 @@ export function UsersManagement() {
 
         {/* Content */}
         <main className="flex-1 p-6 overflow-auto">
-          {/* Stats Cards */}
           {/* Search and Filter */}
           <Card className="bg-white shadow-sm mb-6">
             <CardContent className="p-6">
@@ -209,12 +209,52 @@ export function UsersManagement() {
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    placeholder="Ism yoki telefon bo'yicha qidirish..."
+                    placeholder="ID, ism yoki telefon bo'yicha qidirish..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
                   />
+                  {searchTerm && (
+                    <>
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
+                        {filteredUsers.length} ta topildi
+                      </div>
+                      <button
+                        onClick={() => setSearchTerm("")}
+                        className="absolute right-12 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        title="Qidiruvni tozalash"
+                      >
+                        ✕
+                      </button>
+                    </>
+                  )}
                 </div>
+
+                <Button 
+                  variant="outline" 
+                  onClick={loadUsersWithAccess}
+                  disabled={isLoading}
+                  className="flex items-center space-x-2"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">Yangilash</span>
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    console.log("Current users state:", users)
+                    console.log("Current API status:", apiStatus)
+                    console.log("Current loading state:", isLoading)
+                  }}
+                  className="flex items-center space-x-2"
+                >
+                  Debug
+                </Button>
 
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                   <DialogTrigger asChild>
@@ -270,70 +310,76 @@ export function UsersManagement() {
               <CardTitle>Foydalanuvchilar ro'yxati</CardTitle>
               <CardDescription>
                 Barcha ro'yxatdan o'tgan foydalanuvchilar va ularning ma'lumotlari
+                {!isLoading && users.length > 0 && (
+                  <span className="ml-2 font-medium text-blue-600">
+                    (Jami: {users.length} ta foydalanuvchi)
+                  </span>
+                )}
+                {searchTerm && (
+                  <span className="ml-2 font-medium text-green-600">
+                    (Qidiruv natijasi: {filteredUsers.length} ta)
+                  </span>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Foydalanuvchi</TableHead>
-                      <TableHead>Telefon</TableHead>
-                      <TableHead>Test ruxsati</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          <div className="flex items-center space-x-3">
-                            <Avatar>
-                              <AvatarFallback>{user.id}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <button
-                                onClick={() => router.push(`/admin/users/${user.id}`)}
-                                className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                                title="Foydalanuvchi ma'lumotlarini ko'rish"
-                              >
-                                {user.name}
-                              </button>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm text-gray-600">{user.phone}</div>
-                        </TableCell>
-
-                        <TableCell>
-                          <Link href={`/admin/users/${user.id}`}>
-                            <div className="flex items-center space-x-2">
-                              {user.hasTestAccess ? (
-                                <Badge className="bg-green-100 text-green-800">
-                                  <Unlock className="w-3 h-3 mr-1" />
-                                  {user.testAccessCount || 0} ruxsat
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-red-100 text-red-800">
-                                  <Lock className="w-3 h-3 mr-1" />
-                                  Ruxsat yo'q
-                                </Badge>
-                              )}
-                            </div>
-                          </Link>
-                        </TableCell>
+              {isLoading ? (
+                <LoadingSkeleton />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Foydalanuvchi</TableHead>
+                        <TableHead>Telefon</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <Avatar>
+                                <AvatarFallback>{user.id}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <button
+                                  onClick={() => router.push(`/admin/users/${user.id}`)}
+                                  className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                                  title="Foydalanuvchi ma'lumotlarini ko'rish"
+                                >
+                                  {user.name}
+                                </button>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm text-gray-600">{user.phone}</div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
 
-              {filteredUsers.length === 0 && (
+              {!isLoading && filteredUsers.length === 0 && (
                 <div className="text-center py-12">
                   <Users className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">Foydalanuvchilar topilmadi</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    Qidiruv natijalariga mos keladigan foydalanuvchilar yo'q.
+                    {debouncedSearchTerm ? "Qidiruv natijalariga mos keladigan foydalanuvchilar yo'q." : "Hali foydalanuvchilar qo'shilmagan."}
+                  </p>
+                </div>
+              )}
+
+              {/* Display Summary */}
+              {!isLoading && filteredUsers.length > 0 && (
+                <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded-md">
+                  <p className="text-xs text-gray-600">
+                    <strong>Ko'rsatilmoqda:</strong> {filteredUsers.length} ta foydalanuvchi 
+                    {searchTerm && ` (qidiruv: "${searchTerm}")`}
+                    {!searchTerm && ` (barchasi)`}
                   </p>
                 </div>
               )}
