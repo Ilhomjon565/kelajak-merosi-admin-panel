@@ -202,7 +202,7 @@ function QuestionsPageContent() {
         })
     }
 
-    const addQuestion = () => {
+    const addQuestion = async () => {
         if (!currentQuestion.questionText.trim()) {
             alert("Savol matnini kiriting")
             return
@@ -223,73 +223,339 @@ function QuestionsPageContent() {
             }
         }
 
-                // Check if we're editing an existing question
-        const existingIndex = questions.findIndex(q => q.id === currentQuestion.id)
-        
-        if (existingIndex !== -1) {
-            // Update existing question
-            updateQuestion(existingIndex, { ...currentQuestion })
-        } else {
-            // Add new question with subjectId
-            const newQuestion = { 
-                ...currentQuestion, 
-                subjectId: subjectIndex || 0,
-                id: Date.now() // Temporary ID for new questions
+        setSaving(true)
+        try {
+            // Check if we're editing an existing question
+            const existingIndex = questions.findIndex(q => q.id === currentQuestion.id)
+            
+            let updatedQuestions: TestQuestion[]
+            
+            if (existingIndex !== -1) {
+                // Update existing question
+                updatedQuestions = questions.map((q, i) => i === existingIndex ? currentQuestion : q)
+            } else {
+                // Add new question with subjectId
+                const newQuestion = { 
+                    ...currentQuestion, 
+                    subjectId: subjectIndex || 0,
+                    id: Date.now() // Temporary ID for new questions
+                }
+                updatedQuestions = [...questions, newQuestion]
             }
-            setQuestions((prev) => [...prev, newQuestion])
-        }
 
-        // Reset form for next question
-        setCurrentQuestion({
-            questionType: "SINGLE_CHOICE",
-            questionText: "",
-            writtenAnswer: "",
-            imageUrl: "",
-            youtubeUrl: "",
-            position: "",
-            testAnswerOptions: [
-                { answerText: "", imageUrl: "", isCorrect: false },
-                { answerText: "", imageUrl: "", isCorrect: false },
-                { answerText: "", imageUrl: "", isCorrect: false },
-                { answerText: "", imageUrl: "", isCorrect: false },
-            ],
-        })
+            // Update local state first
+            setQuestions(updatedQuestions)
 
-        // Show success message
-        if (existingIndex !== -1) {
-            alert("Savol muvaffaqiyatli yangilandi!")
-        } else {
-            alert("Yangi savol muvaffaqiyatli qo'shildi!")
+            // Get the stored template data
+            const storedData = localStorage.getItem('editTestTemplateData')
+            if (!storedData || subjectIndex === null) {
+                alert("Ma'lumotlar topilmadi")
+                return
+            }
+
+            const data = JSON.parse(storedData)
+            
+            // Update the questions for the current subject
+            data.subjectsWithQuestions[subjectIndex].questions = updatedQuestions
+            
+            // Prepare data for API according to the required structure
+            const apiData = {
+                title: data.title,
+                duration: parseInt(data.duration) || 0,
+                price: parseInt(data.price) || 0,
+                testSubjectsAndQuestions: data.subjectsWithQuestions.map((subject: SubjectWithQuestions) => ({
+                    subjectId: subject.subject.id,
+                    subjectRole: subject.role,
+                    testQuestions: subject.questions.map((question: TestQuestion) => ({
+                        questionType: question.questionType,
+                        questionText: question.questionText,
+                        writtenAnswer: question.writtenAnswer || "",
+                        imageUrl: question.imageUrl || "",
+                        youtubeUrl: question.youtubeUrl || "",
+                        position: question.position,
+                        options: question.testAnswerOptions.map((option: TestQuestionOption) => ({
+                            answerText: option.answerText,
+                            imageUrl: option.imageUrl || "",
+                            isCorrect: option.isCorrect
+                        }))
+                    }))
+                }))
+            }
+
+            // Send PUT request to update template
+            const response = await fetch(`https://api.kelajakmerosi.uz/api/template/update/${templateId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiService.getAccessToken()}`
+                },
+                body: JSON.stringify(apiData)
+            })
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const result = await response.json()
+            
+            if (result.success) {
+                // Reset form for next question
+                setCurrentQuestion({
+                    questionType: "SINGLE_CHOICE",
+                    questionText: "",
+                    writtenAnswer: "",
+                    imageUrl: "",
+                    youtubeUrl: "",
+                    position: "",
+                    testAnswerOptions: [
+                        { answerText: "", imageUrl: "", isCorrect: false },
+                        { answerText: "", imageUrl: "", isCorrect: false },
+                        { answerText: "", imageUrl: "", isCorrect: false },
+                        { answerText: "", imageUrl: "", isCorrect: false },
+                    ],
+                })
+
+                // Show success message
+                if (existingIndex !== -1) {
+                    alert("Savol muvaffaqiyatli yangilandi!")
+                } else {
+                    alert("Yangi savol muvaffaqiyatli qo'shildi!")
+                }
+            } else {
+                alert(`Xatolik: ${result.message || 'Ma\'lumotlar saqlanmadi'}`)
+            }
+
+        } catch (error) {
+            console.error('Error saving question:', error)
+            alert(`Xatolik yuz berdi: ${error instanceof Error ? error.message : 'Noma\'lum xatolik'}`)
+        } finally {
+            setSaving(false)
         }
     }
 
-    const removeQuestion = (index: number) => {
-        setQuestions((prev) => prev.filter((_, i) => i !== index))
+    const removeQuestion = async (index: number) => {
+        if (!confirm("Bu savolni o'chirishni xohlaysizmi?")) {
+            return
+        }
+
+        setSaving(true)
+        try {
+            // Remove question from local state first
+            const updatedQuestions = questions.filter((_, i) => i !== index)
+            setQuestions(updatedQuestions)
+
+            // Get the stored template data
+            const storedData = localStorage.getItem('editTestTemplateData')
+            if (!storedData || subjectIndex === null) {
+                alert("Ma'lumotlar topilmadi")
+                return
+            }
+
+            const data = JSON.parse(storedData)
+            
+            // Update the questions for the current subject
+            data.subjectsWithQuestions[subjectIndex].questions = updatedQuestions
+            
+            // Prepare data for API according to the required structure
+            const apiData = {
+                title: data.title,
+                duration: parseInt(data.duration) || 0,
+                price: parseInt(data.price) || 0,
+                testSubjectsAndQuestions: data.subjectsWithQuestions.map((subject: SubjectWithQuestions) => ({
+                    subjectId: subject.subject.id,
+                    subjectRole: subject.role,
+                    testQuestions: subject.questions.map((question: TestQuestion) => ({
+                        questionType: question.questionType,
+                        questionText: question.questionText,
+                        writtenAnswer: question.writtenAnswer || "",
+                        imageUrl: question.imageUrl || "",
+                        youtubeUrl: question.youtubeUrl || "",
+                        position: question.position,
+                        options: question.testAnswerOptions.map((option: TestQuestionOption) => ({
+                            answerText: option.answerText,
+                            imageUrl: option.imageUrl || "",
+                            isCorrect: option.isCorrect
+                        }))
+                    }))
+                }))
+            }
+
+            // Send PUT request to update template
+            const response = await fetch(`https://api.kelajakmerosi.uz/api/template/update/${templateId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiService.getAccessToken()}`
+                },
+                body: JSON.stringify(apiData)
+            })
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const result = await response.json()
+            
+            if (result.success) {
+                alert("Savol muvaffaqiyatli o'chirildi!")
+            } else {
+                alert(`Xatolik: ${result.message || 'Savol o\'chirilmadi'}`)
+            }
+
+        } catch (error) {
+            console.error('Error removing question:', error)
+            alert(`Xatolik yuz berdi: ${error instanceof Error ? error.message : 'Noma\'lum xatolik'}`)
+        } finally {
+            setSaving(false)
+        }
     }
 
     const editQuestion = (question: TestQuestion) => {
         setCurrentQuestion(question)
     }
 
-    const updateQuestion = (index: number, updatedQuestion: TestQuestion) => {
-        setQuestions((prev) => prev.map((q, i) => i === index ? updatedQuestion : q))
+    const updateQuestion = async (index: number, updatedQuestion: TestQuestion) => {
+        setSaving(true)
+        try {
+            // Update question in local state first
+            const updatedQuestions = questions.map((q, i) => i === index ? updatedQuestion : q)
+            setQuestions(updatedQuestions)
+
+            // Get the stored template data
+            const storedData = localStorage.getItem('editTestTemplateData')
+            if (!storedData || subjectIndex === null) {
+                alert("Ma'lumotlar topilmadi")
+                return
+            }
+
+            const data = JSON.parse(storedData)
+            
+            // Update the questions for the current subject
+            data.subjectsWithQuestions[subjectIndex].questions = updatedQuestions
+            
+            // Prepare data for API according to the required structure
+            const apiData = {
+                title: data.title,
+                duration: parseInt(data.duration) || 0,
+                price: parseInt(data.price) || 0,
+                testSubjectsAndQuestions: data.subjectsWithQuestions.map((subject: SubjectWithQuestions) => ({
+                    subjectId: subject.subject.id,
+                    subjectRole: subject.role,
+                    testQuestions: subject.questions.map((question: TestQuestion) => ({
+                        questionType: question.questionType,
+                        questionText: question.questionText,
+                        writtenAnswer: question.writtenAnswer || "",
+                        imageUrl: question.imageUrl || "",
+                        youtubeUrl: question.youtubeUrl || "",
+                        position: question.position,
+                        options: question.testAnswerOptions.map((option: TestQuestionOption) => ({
+                            answerText: option.answerText,
+                            imageUrl: option.imageUrl || "",
+                            isCorrect: option.isCorrect
+                        }))
+                    }))
+                }))
+            }
+
+            // Send PUT request to update template
+            const response = await fetch(`https://api.kelajakmerosi.uz/api/template/update/${templateId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiService.getAccessToken()}`
+                },
+                body: JSON.stringify(apiData)
+            })
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const result = await response.json()
+            
+            if (result.success) {
+                alert("Savol muvaffaqiyatli yangilandi!")
+            } else {
+                alert(`Xatolik: ${result.message || 'Savol yangilanmadi'}`)
+            }
+
+        } catch (error) {
+            console.error('Error updating question:', error)
+            alert(`Xatolik yuz berdi: ${error instanceof Error ? error.message : 'Noma\'lum xatolik'}`)
+        } finally {
+            setSaving(false)
+        }
     }
 
-    const handleSaveAndBack = () => {
-        // Update the stored data with current questions
-        const storedData = localStorage.getItem('editTestTemplateData')
-        if (storedData && subjectIndex !== null) {
-            try {
-                const data = JSON.parse(storedData)
-                data.subjectsWithQuestions[subjectIndex].questions = questions
-                localStorage.setItem('editTestTemplateData', JSON.stringify(data))
-            } catch (error) {
-                console.error('Error updating stored data:', error)
+    const handleSaveAndBack = async () => {
+        setSaving(true)
+        try {
+            // Get the stored template data
+            const storedData = localStorage.getItem('editTestTemplateData')
+            if (!storedData || subjectIndex === null) {
+                alert("Ma'lumotlar topilmadi")
+                return
             }
-        }
 
-        // Navigate back to edit page
-        router.push(`/admin/test-templates/edit/${templateId}`)
+            const data = JSON.parse(storedData)
+            
+            // Update the questions for the current subject
+            data.subjectsWithQuestions[subjectIndex].questions = questions
+            
+            // Prepare data for API according to the required structure
+            const apiData = {
+                title: data.title,
+                duration: parseInt(data.duration) || 0,
+                price: parseInt(data.price) || 0,
+                testSubjectsAndQuestions: data.subjectsWithQuestions.map((subject: SubjectWithQuestions) => ({
+                    subjectId: subject.subject.id,
+                    subjectRole: subject.role,
+                    testQuestions: subject.questions.map((question: TestQuestion) => ({
+                        questionType: question.questionType,
+                        questionText: question.questionText,
+                        writtenAnswer: question.writtenAnswer || "",
+                        imageUrl: question.imageUrl || "",
+                        youtubeUrl: question.youtubeUrl || "",
+                        position: question.position,
+                        options: question.testAnswerOptions.map((option: TestQuestionOption) => ({
+                            answerText: option.answerText,
+                            imageUrl: option.imageUrl || "",
+                            isCorrect: option.isCorrect
+                        }))
+                    }))
+                }))
+            }
+
+            // Send PUT request to update template
+            const response = await fetch(`https://api.kelajakmerosi.uz/api/template/update/${templateId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiService.getAccessToken()}`
+                },
+                body: JSON.stringify(apiData)
+            })
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const result = await response.json()
+            
+            if (result.success) {
+                alert("Ma'lumotlar muvaffaqiyatli saqlandi!")
+                // Navigate back to edit page
+                router.push(`/admin/test-templates/edit/${templateId}`)
+            } else {
+                alert(`Xatolik: ${result.message || 'Ma\'lumotlar saqlanmadi'}`)
+            }
+
+        } catch (error) {
+            console.error('Error saving data:', error)
+            alert(`Xatolik yuz berdi: ${error instanceof Error ? error.message : 'Noma\'lum xatolik'}`)
+        } finally {
+            setSaving(false)
+        }
     }
 
     if (loading) {
@@ -368,10 +634,20 @@ function QuestionsPageContent() {
                             </div>
                             <Button
                                 onClick={handleSaveAndBack}
-                                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                                disabled={saving}
+                                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <Save className="h-4 w-4 mr-2" />
-                                Saqlash va qaytish
+                                {saving ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 mr-2 border-b-2 border-white"></div>
+                                        Saqlanmoqda...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="h-4 w-4 mr-2" />
+                                        Saqlash va qaytish
+                                    </>
+                                )}
                             </Button>
                         </div>
                     </div>
