@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Plus, ArrowLeft, Trash2, Save, CheckCircle, Edit, Loader2 } from "lucide-react"
+import { Plus, ArrowLeft, Trash2, Save, CheckCircle, Edit, Loader2, Trash } from "lucide-react"
 
 import { apiService } from "@/lib/api"
 import { AdminSidebar } from "@/components/admin/sidebar"
@@ -496,7 +496,7 @@ function EditQuestionsPageContent() {
                                                 }}
                                                 className="border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
                                             />
-                                            <button onClick={() => setCurrentQuestion({ ...currentQuestion, imageUrl: "" })}>Rasmni o'chirish</button>
+                                            <button onClick={() => setCurrentQuestion({ ...currentQuestion, imageUrl: "" })} className="p-2 bg-red-500 rounded-lg text-white mt-4 flex items-center gap-2"><Trash className="h-4 w-4" />Rasmni o'chirish</button>
                                             {currentQuestion.imageUrl && (
                                                 <div className="absolute -top-2 -right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full border border-green-200">
                                                     ✓ Rasm yuklandi
