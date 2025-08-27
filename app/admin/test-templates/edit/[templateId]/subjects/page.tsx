@@ -175,29 +175,58 @@ function EditSubjectsPageContent() {
                          
                          console.log('Processed subjects:', existingSubjects)
                         
-                        console.log('Setting subjectWithQuestions:', existingSubjects)
-                        setSubjectWithQuestions(existingSubjects)
-                        
-                        // Initialize form with template data if not already set
-                        if (!templateData) {
-                            const newForm = {
-                                title: template.title || "",
-                                duration: template.duration?.toString() || "",
-                                price: template.price?.toString() || "",
-                                imageUrl: template.imageUrl || "",
-                            }
-                            console.log('Setting form with template data:', newForm)
-                            setForm(newForm)
-                        }
-                        
-                        // Store in localStorage with template ID
-                        localStorage.setItem(`editTestTemplateData_${templateId}`, JSON.stringify({
-                            title: template.title || "",
-                            duration: template.duration || "",
-                            price: template.price || "",
-                            imageUrl: template.imageUrl || "",
-                            subjectWithQuestions: existingSubjects
-                        }))
+                                                 // Check if we have localStorage data with more recent changes
+                         const storedData = localStorage.getItem(`editTestTemplateData_${templateId}`)
+                         let finalSubjects = existingSubjects
+                         
+                         if (storedData) {
+                             try {
+                                 const storedJson = JSON.parse(storedData)
+                                 if (storedJson.subjectWithQuestions && storedJson.subjectWithQuestions.length > 0) {
+                                     // Merge API data with localStorage data to preserve edits
+                                     finalSubjects = storedJson.subjectWithQuestions.map((storedSubject: any) => {
+                                         const apiSubject = existingSubjects.find((s: any) => s.subjectId === storedSubject.subjectId)
+                                         if (apiSubject) {
+                                             // Use stored questions if they exist, otherwise use API questions
+                                             return {
+                                                 ...storedSubject,
+                                                 questions: storedSubject.questions && storedSubject.questions.length > 0 
+                                                     ? storedSubject.questions 
+                                                     : apiSubject.questions
+                                             }
+                                         }
+                                         return storedSubject
+                                     })
+                                     console.log('Using merged data from localStorage and API:', finalSubjects)
+                                 }
+                             } catch (error) {
+                                 console.error('Error merging localStorage data:', error)
+                             }
+                         }
+                         
+                         console.log('Setting subjectWithQuestions:', finalSubjects)
+                         setSubjectWithQuestions(finalSubjects)
+                         
+                         // Initialize form with template data if not already set
+                         if (!templateData) {
+                             const newForm = {
+                                 title: template.title || "",
+                                 duration: template.duration?.toString() || "",
+                                 price: template.price?.toString() || "",
+                                 imageUrl: template.imageUrl || "",
+                             }
+                             console.log('Setting form with template data:', newForm)
+                             setForm(newForm)
+                         }
+                         
+                         // Store in localStorage with template ID (preserve any existing edits)
+                         localStorage.setItem(`editTestTemplateData_${templateId}`, JSON.stringify({
+                             title: template.title || "",
+                             duration: template.duration || "",
+                             price: template.price || "",
+                             imageUrl: template.imageUrl || "",
+                             subjectWithQuestions: finalSubjects
+                         }))
                     }
                 } else {
                     throw new Error("Fanlarni yuklashda xatolik")
@@ -218,6 +247,7 @@ function EditSubjectsPageContent() {
             try {
                 const data = JSON.parse(storedData)
                 if (data.subjectWithQuestions) {
+                    console.log('Loading data from localStorage:', data.subjectWithQuestions)
                     setSubjectWithQuestions(data.subjectWithQuestions)
                     // Only update form if we don't have template data from URL
                     if (!templateData) {
@@ -326,19 +356,46 @@ function EditSubjectsPageContent() {
 
         setSaving(true)
         try {
+            console.log('Current subjectWithQuestions state:', subjectWithQuestions)
+            
+            // Merge existing questions with new subject structure
+            const mergedSubjectsWithQuestions = subjectWithQuestions.map(subject => {
+                // Use the questions from the current state (which includes localStorage updates)
+                const finalQuestions = subject.questions
+                
+                console.log(`Subject ${subject.subjectId} - Questions from state:`, finalQuestions)
+                
+                return {
+                    subjectId: parseInt(subject.subjectId, 10),
+                    subjectRole: subject.subjectRole,
+                    testQuestions: finalQuestions.map((q: any) => ({
+                        id: q.id,
+                        questionType: q.questionType === "WRITTEN" ? "WRITTEN_ANSWER" : q.questionType,
+                        questionText: q.questionText || "",
+                        writtenAnswer: q.writtenAnswer || "",
+                        imageUrl: q.imageUrl || "",
+                        youtubeUrl: q.youtubeUrl || "",
+                        position: q.position || "",
+                        testAnswerOptions: q.options?.map((opt: any) => ({
+                            id: opt.id,
+                            answerText: opt.answerText || "",
+                            imageUrl: opt.imageUrl || "",
+                            isCorrect: opt.isCorrect || false
+                        })) || []
+                    }))
+                }
+            })
+            
             const payload = {
                 title: form.title,
                 duration: parseInt(form.duration, 10),
                 price: parseInt(form.price, 10) || 0,
-                testSubjectsAndQuestions: subjectWithQuestions.map(subject => ({
-                    subjectId: parseInt(subject.subjectId, 10),
-                    subjectRole: subject.subjectRole,
-                    testQuestions: subject.questions.map(q => ({
-                        ...q,
-                        questionType: q.questionType === "WRITTEN" ? "WRITTEN_ANSWER" : q.questionType,
-                    }))
-                }))
+                testSubjectsAndQuestions: mergedSubjectsWithQuestions
             }
+            
+            console.log('PUT request payload:', payload)
+            console.log('PUT request URL:', `https://api.kelajakmerosi.uz/api/template/update/${templateId}`)
+            console.log('Merged subjects count:', mergedSubjectsWithQuestions.length)
 
             const res = await fetch(`https://api.kelajakmerosi.uz/api/template/update/${templateId}`, {
                 method: "PUT",
