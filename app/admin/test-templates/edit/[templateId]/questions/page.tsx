@@ -496,7 +496,7 @@ function EditQuestionsPageContent() {
                                                 }}
                                                 className="border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
                                             />
-                                            <button onClick={() => setCurrentQuestion({ ...currentQuestion, imageUrl: "" })} className="p-2 bg-red-500 rounded-lg text-white mt-4 flex items-center gap-2"><Trash className="h-4 w-4" />Rasmni o'chirish</button>
+                                            <button onClick={() => setCurrentQuestion({ ...currentQuestion, imageUrl: "" })} className="p-2 bg-red-500 rounded-lg text-white mt-4 flex items-center gap-2l"><Trash className="h-4 w-4" />Rasmni o'chirish</button>
                                             {currentQuestion.imageUrl && (
                                                 <div className="absolute -top-2 -right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full border border-green-200">
                                                     ✓ Rasm yuklandi
@@ -661,7 +661,9 @@ function EditQuestionsPageContent() {
                                     </div>
                                 ) : (
                                     <div className="space-y-3 max-h-96 overflow-y-auto">
-                                        {questions.map((q, qi) => (
+                                        {questions
+                                            .sort((a, b) => parseInt(a.position || '0') - parseInt(b.position || '0'))
+                                            .map((q, qi) => (
                                             <div key={qi} className="p-3 border border-gray-200 rounded-lg bg-white hover:shadow-md transition-shadow duration-200">
                                                 <div className="flex items-start justify-between">
                                                     <div className="space-y-2 flex-1">
@@ -687,7 +689,7 @@ function EditQuestionsPageContent() {
                                                         <Button 
                                                             variant="outline" 
                                                             size="sm"
-                                                            onClick={() => startEditingQuestion(qi)}
+                                                            onClick={() => startEditingQuestion(questions.findIndex(question => question === q))}
                                                             className="border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
                                                         >
                                                             <Edit className="h-3 w-3" />
@@ -695,7 +697,7 @@ function EditQuestionsPageContent() {
                                                         <Button 
                                                             variant="outline" 
                                                             size="sm" 
-                                                            onClick={() => removeQuestion(qi)}
+                                                            onClick={() => removeQuestion(questions.findIndex(question => question === q))}
                                                             className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
                                                         >
                                                             <Trash2 className="h-3 w-3" />
