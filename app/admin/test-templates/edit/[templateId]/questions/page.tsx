@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useParams, useSearchParams } from "next/navigation"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,18 +10,20 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Plus, ArrowLeft, Trash2, Save, CheckCircle } from "lucide-react"
+import { Plus, ArrowLeft, Trash2, Save, CheckCircle, Edit, Loader2 } from "lucide-react"
 
 import { apiService } from "@/lib/api"
 import { AdminSidebar } from "@/components/admin/sidebar"
 
 interface TestQuestionOption {
+    id?: number
     answerText: string
     imageUrl: string
     isCorrect: boolean
 }
 
 interface TestQuestion {
+    id?: number
     questionType: "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "WRITTEN_ANSWER" | "WRITTEN"
     questionText: string
     writtenAnswer: string
@@ -42,9 +44,12 @@ interface TestTemplateForm {
     questions: TestQuestion[]
 }
 
-function QuestionsPageContent() {
+function EditQuestionsPageContent() {
     const router = useRouter()
+    const params = useParams()
     const searchParams = useSearchParams()
+    
+    const templateId = params.templateId as string
     
     // Get subject index from URL params
     const subjectIndex = searchParams.get('subjectIndex') ? parseInt(searchParams.get('subjectIndex')!) : null
@@ -53,6 +58,7 @@ function QuestionsPageContent() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
+    const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null)
 
     const [questions, setQuestions] = useState<TestQuestion[]>([])
     const [currentQuestion, setCurrentQuestion] = useState<TestQuestion>({
@@ -82,8 +88,8 @@ function QuestionsPageContent() {
     })
 
     useEffect(() => {
-        // Load data from localStorage
-        const storedData = localStorage.getItem('testTemplateData')
+        // Load data from localStorage with template ID
+        const storedData = localStorage.getItem(`editTestTemplateData_${templateId}`)
         if (storedData && subjectIndex !== null) {
             try {
                 const data = JSON.parse(storedData)
@@ -107,7 +113,7 @@ function QuestionsPageContent() {
             }
         }
         setLoading(false)
-    }, [subjectIndex])
+    }, [subjectIndex, templateId])
 
     const handleImageUpload = async (file: File): Promise<string> => {
         const formData = new FormData()
@@ -160,6 +166,34 @@ function QuestionsPageContent() {
         })
     }
 
+    const startEditingQuestion = (questionIndex: number) => {
+        const question = questions[questionIndex]
+        setCurrentQuestion({ ...question })
+        setEditingQuestionIndex(questionIndex)
+    }
+
+    const cancelEditing = () => {
+        setEditingQuestionIndex(null)
+        setCurrentQuestion({
+            questionType: "SINGLE_CHOICE",
+            questionText: "",
+            writtenAnswer: "",
+            imageUrl: "",
+            youtubeUrl: "",
+            position: "",
+            options: [
+                { answerText: "", imageUrl: "", isCorrect: false },
+                { answerText: "", imageUrl: "", isCorrect: false },
+                { answerText: "", imageUrl: "", isCorrect: false },
+                { answerText: "", imageUrl: "", isCorrect: false },
+            ],
+        })
+    }
+
+    const clearLocalStorage = () => {
+        localStorage.removeItem(`editTestTemplateData_${templateId}`)
+    }
+
     const addQuestion = () => {
         if (!currentQuestion.questionText.trim()) {
             alert("Savol matnini kiriting")
@@ -181,7 +215,31 @@ function QuestionsPageContent() {
             }
         }
 
-        setQuestions((prev) => [...prev, { ...currentQuestion }])
+        let newQuestions: TestQuestion[]
+        if (editingQuestionIndex !== null) {
+            // Update existing question
+            newQuestions = questions.map((q, i) => 
+                i === editingQuestionIndex ? { ...currentQuestion } : q
+            )
+            setQuestions(newQuestions)
+            setEditingQuestionIndex(null)
+        } else {
+            // Add new question
+            newQuestions = [...questions, { ...currentQuestion }]
+            setQuestions(newQuestions)
+        }
+        
+        // Save to localStorage
+        const storedData = localStorage.getItem(`editTestTemplateData_${templateId}`)
+        if (storedData && subjectIndex !== null) {
+            try {
+                const data = JSON.parse(storedData)
+                data.subjectWithQuestions[subjectIndex].questions = newQuestions
+                localStorage.setItem(`editTestTemplateData_${templateId}`, JSON.stringify(data))
+            } catch (error) {
+                console.error('Error updating stored data:', error)
+            }
+        }
         
         // Reset form for next question
         setCurrentQuestion({
@@ -201,31 +259,56 @@ function QuestionsPageContent() {
     }
 
     const removeQuestion = (index: number) => {
-        setQuestions((prev) => prev.filter((_, i) => i !== index))
+        const newQuestions = questions.filter((_, i) => i !== index)
+        setQuestions(newQuestions)
+        
+        // Save to localStorage
+        const storedData = localStorage.getItem(`editTestTemplateData_${templateId}`)
+        if (storedData && subjectIndex !== null) {
+            try {
+                const data = JSON.parse(storedData)
+                data.subjectWithQuestions[subjectIndex].questions = newQuestions
+                localStorage.setItem(`editTestTemplateData_${templateId}`, JSON.stringify(data))
+            } catch (error) {
+                console.error('Error updating stored data:', error)
+            }
+        }
     }
 
     const handleSaveAndBack = () => {
         // Update the stored data with current questions
-        const storedData = localStorage.getItem('testTemplateData')
+        const storedData = localStorage.getItem(`editTestTemplateData_${templateId}`)
         if (storedData && subjectIndex !== null) {
             try {
                 const data = JSON.parse(storedData)
                 data.subjectWithQuestions[subjectIndex].questions = questions
-                localStorage.setItem('testTemplateData', JSON.stringify(data))
+                localStorage.setItem(`editTestTemplateData_${templateId}`, JSON.stringify(data))
             } catch (error) {
                 console.error('Error updating stored data:', error)
             }
         }
         
         // Navigate back to subjects page
-        router.push('/admin/test-templates/add/subjects')
+        router.push(`/admin/test-templates/edit/${templateId}/subjects`)
     }
+
+    // Clear localStorage when component unmounts or on error
+    useEffect(() => {
+        return () => {
+            // Only clear if there was an error
+            if (error) {
+                localStorage.removeItem(`editTestTemplateData_${templateId}`)
+            }
+        }
+    }, [error, templateId])
+
+
 
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+                    <Loader2 className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto" />
                     <p className="mt-4 text-gray-600">Ma'lumotlar yuklanmoqda...</p>
                 </div>
             </div>
@@ -272,10 +355,28 @@ function QuestionsPageContent() {
                 <div className="mb-8">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-4">
+                            <Button 
+                                variant="outline" 
+                                onClick={() => {
+                                    if (questions.length > 0) {
+                                        if (confirm("Saqlanmagan o'zgarishlar bor. Haqiqatan ham qaytmoqchimisiz?")) {
+                                            // Clear localStorage when going back without saving
+                                            localStorage.removeItem(`editTestTemplateData_${templateId}`)
+                                            router.push(`/admin/test-templates/edit/${templateId}/subjects`)
+                                        }
+                                    } else {
+                                        router.push(`/admin/test-templates/edit/${templateId}/subjects`)
+                                    }
+                                }}
+                                className="flex items-center gap-2"
+                            >
+                                <ArrowLeft className="h-4 w-4" />
+                                Orqaga
+                            </Button>
                             <div className="h-8 w-1 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></div>
                             <div>
                                 <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                                    Savollar qo'shish
+                                    Savollarni tahrirlash
                                 </h1>
                                 <p className="text-gray-600 mt-1">
                                     {form.subjectName} - {form.subjectRole} fan uchun savollar
@@ -306,11 +407,18 @@ function QuestionsPageContent() {
                             <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100">
                                 <CardTitle className="flex items-center gap-3 text-gray-800">
                                     <div className="p-2 bg-blue-100 rounded-lg">
-                                        <Plus className="h-5 w-5 text-blue-600" />
+                                        {editingQuestionIndex !== null ? <Edit className="h-5 w-5 text-blue-600" /> : <Plus className="h-5 w-5 text-blue-600" />}
                                     </div>
                                     <div>
-                                        <div className="text-lg font-semibold">Yangi savol #{questions.length + 1}</div>
-                                        <div className="text-sm text-gray-600 font-normal">Ma'lumotlarni to'ldiring</div>
+                                        <div className="text-lg font-semibold">
+                                            {editingQuestionIndex !== null 
+                                                ? `Savolni tahrirlash #${editingQuestionIndex + 1}` 
+                                                : `Yangi savol #${questions.length + 1}`
+                                            }
+                                        </div>
+                                        <div className="text-sm text-gray-600 font-normal">
+                                            {editingQuestionIndex !== null ? 'Savolni o\'zgartiring' : 'Ma\'lumotlarni to\'ldiring'}
+                                        </div>
                                     </div>
                                 </CardTitle>
                             </CardHeader>
@@ -494,15 +602,35 @@ function QuestionsPageContent() {
                                     </div>
                                 )}
 
-                                {/* Add Question Button */}
-                                <Button 
-                                    onClick={addQuestion} 
-                                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-3 text-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200"
-                                    disabled={!currentQuestion.questionText.trim() || !currentQuestion.position}
-                                >
-                                    <Plus className="h-5 w-5 mr-2" />
-                                    Savolni qo'shish
-                                </Button>
+                                {/* Action Buttons */}
+                                <div className="flex gap-3">
+                                    {editingQuestionIndex !== null && (
+                                        <Button 
+                                            variant="outline"
+                                            onClick={cancelEditing}
+                                            className="flex-1"
+                                        >
+                                            Bekor qilish
+                                        </Button>
+                                    )}
+                                    <Button 
+                                        onClick={addQuestion} 
+                                        className={`flex-1 ${editingQuestionIndex !== null ? 'bg-orange-600 hover:bg-orange-700' : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'}`}
+                                        disabled={!currentQuestion.questionText.trim() || !currentQuestion.position}
+                                    >
+                                        {editingQuestionIndex !== null ? (
+                                            <>
+                                                <Edit className="h-5 w-5 mr-2" />
+                                                Savolni yangilash
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Plus className="h-5 w-5 mr-2" />
+                                                Savolni qo'shish
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
@@ -516,7 +644,7 @@ function QuestionsPageContent() {
                                         <CheckCircle className="h-5 w-5 text-green-600" />
                                     </div>
                                     <div>
-                                        <div className="text-lg font-semibold">Qo'shilgan savollar</div>
+                                        <div className="text-lg font-semibold">Mavjud savollar</div>
                                         <div className="text-sm text-gray-600 font-normal">{questions.length} ta savol</div>
                                     </div>
                                 </CardTitle>
@@ -554,14 +682,24 @@ function QuestionsPageContent() {
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <Button 
-                                                        variant="outline" 
-                                                        size="sm" 
-                                                        onClick={() => removeQuestion(qi)}
-                                                        className="flex-shrink-0 ml-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-                                                    >
-                                                        <Trash2 className="h-3 w-3" />
-                                                    </Button>
+                                                    <div className="flex gap-1">
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm"
+                                                            onClick={() => startEditingQuestion(qi)}
+                                                            className="border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
+                                                        >
+                                                            <Edit className="h-3 w-3" />
+                                                        </Button>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            onClick={() => removeQuestion(qi)}
+                                                            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                                                        >
+                                                            <Trash2 className="h-3 w-3" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -585,17 +723,17 @@ function LoadingFallback() {
     return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="text-center">
-                <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+                <Loader2 className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto" />
                 <p className="mt-4 text-gray-600">Ma'lumotlar yuklanmoqda...</p>
             </div>
         </div>
     )
 }
 
-export default function AddQuestionsPage() {
+export default function EditQuestionsPage() {
     return (
         <Suspense fallback={<LoadingFallback />}>
-            <QuestionsPageContent />
+            <EditQuestionsPageContent />
         </Suspense>
     )
 }

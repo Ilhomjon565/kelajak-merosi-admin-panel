@@ -1,38 +1,98 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState, Suspense } from "react"
+import { useRouter, useParams } from "next/navigation"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, ArrowLeft } from "lucide-react"
+import { Plus, ArrowLeft, Loader2 } from "lucide-react"
 
 import { apiService } from "@/lib/api"
 import { AdminSidebar } from "@/components/admin/sidebar"
 
+interface TestTemplateForm {
+    title: string
+    duration: string
+    price: string
+    imageUrl: string
+}
 
-
-export default function AddTestTemplatePage() {
+function EditTestTemplatePageContent() {
     const router = useRouter()
+    const params = useParams()
+    const templateId = params.templateId as string
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    const [form, setForm] = useState({
+    const [form, setForm] = useState<TestTemplateForm>({
         title: "",
         duration: "",
         price: "",
         imageUrl: "",
     })
 
+
+
     const [selectedImage, setSelectedImage] = useState<File | null>(null)
 
     useEffect(() => {
-        setLoading(false)
-    }, [])
+        fetchTemplateData()
+    }, [templateId])
+
+
+
+    // Clear localStorage when component unmounts
+    useEffect(() => {
+        return () => {
+            // Only clear if there was an error
+            if (error) {
+                localStorage.removeItem(`editTestTemplateData_${templateId}`)
+            }
+        }
+    }, [error, templateId])
+
+    const fetchTemplateData = async () => {
+        try {
+            setLoading(true)
+            setError(null)
+            
+            const response = await fetch(`https://api.kelajakmerosi.uz/api/template/getWithoutQuestions/${templateId}`, {
+                headers: { 
+                    Authorization: `Bearer ${apiService.getAccessToken()}` 
+                }
+            })
+            
+            const result = await response.json()
+            
+            if (result.success) {
+                const template = result.data
+                const newForm = {
+                    title: template.title || "",
+                    duration: template.duration?.toString() || "",
+                    price: template.price?.toString() || "0",
+                    imageUrl: template.imageUrl || "",
+                }
+                setForm(newForm)
+                
+                // Save initial form data to localStorage
+                localStorage.setItem(`editTestTemplateData_${templateId}`, JSON.stringify({
+                    ...newForm,
+                    subjectWithQuestions: []
+                }))
+            } else {
+                setError(result.message || "Test shablonini yuklashda xatolik")
+            }
+        } catch (err) {
+            setError("Ma'lumotlarni yuklashda xatolik yuz berdi")
+            console.error("Error fetching template:", err)
+        } finally {
+            setLoading(false)
+        }
+    }
 
     const handleImageUpload = async (file: File): Promise<string> => {
         const formData = new FormData()
@@ -66,7 +126,7 @@ export default function AddTestTemplatePage() {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+                    <Loader2 className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto" />
                     <p className="mt-4 text-gray-600">Ma'lumotlar yuklanmoqda...</p>
                 </div>
             </div>
@@ -101,6 +161,26 @@ export default function AddTestTemplatePage() {
             </div>
 
             <div className="lg:ml-64 p-6">
+                {/* Header */}
+                <div className="mb-6 flex items-center gap-4">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => {
+                            // Clear localStorage when going back
+                            localStorage.removeItem(`editTestTemplateData_${templateId}`)
+                            router.push("/admin/test-templates")
+                        }}
+                        className="flex items-center gap-2"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        Orqaga
+                    </Button>
+                    <div>
+                        <h1 className="text-2xl font-bold">Test shablonini tahrirlash</h1>
+                        <p className="text-gray-600">Mavjud test shablonini o'zgartiring</p>
+                    </div>
+                </div>
+
                 <Card>
                     <CardHeader>
                         <CardTitle>Asosiy ma'lumotlar</CardTitle>
@@ -136,8 +216,6 @@ export default function AddTestTemplatePage() {
                                 />
                             </div>
 
-
-
                             <div className="space-y-2 lg:col-span-2">
                                 <Label htmlFor="image">Rasm</Label>
                                 <Input
@@ -159,6 +237,9 @@ export default function AddTestTemplatePage() {
                                 {selectedImage && form.imageUrl && (
                                     <p className="text-xs text-green-600">Rasm yuklandi: {form.imageUrl}</p>
                                 )}
+                                {form.imageUrl && !selectedImage && (
+                                    <p className="text-xs text-blue-600">Mavjud rasm: {form.imageUrl}</p>
+                                )}
                             </div>
                         </div>
                     </CardContent>
@@ -172,7 +253,7 @@ export default function AddTestTemplatePage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="text-center py-6 border-2 border-dashed border-gray-300 rounded-lg">
-                            <p className="text-gray-500 mb-4">Savollar qo'shish uchun tugmani bosing</p>
+                            <p className="text-gray-500 mb-4">Savollarni tahrirlash uchun tugmani bosing</p>
                             <Button 
                                 onClick={() => {
                                     if (!form.title.trim()) {
@@ -191,10 +272,10 @@ export default function AddTestTemplatePage() {
                                         imageUrl: form.imageUrl,
                                     }
                                     const encodedData = encodeURIComponent(JSON.stringify(templateData))
-                                    router.push(`/admin/test-templates/add/subjects?template=${encodedData}`)
+                                    router.push(`/admin/test-templates/edit/${templateId}/subjects?template=${encodedData}`)
                                 }}
                             >
-                                <Plus className="h-4 w-4 mr-2" /> Fanlar va savollar qo'shish
+                                <Plus className="h-4 w-4 mr-2" /> Fanlar va savollarni tahrirlash
                             </Button>
                         </div>
                     </CardContent>
@@ -203,7 +284,11 @@ export default function AddTestTemplatePage() {
                 <div className="h-6" />
 
                 <div className="flex gap-2 justify-end">
-                    <Button variant="outline" onClick={() => router.push("/admin/test-templates")}>
+                    <Button variant="outline" onClick={() => {
+                        // Clear localStorage when canceling
+                        localStorage.removeItem(`editTestTemplateData_${templateId}`)
+                        router.push("/admin/test-templates")
+                    }}>
                         Bekor qilish
                     </Button>
                     <Button onClick={handleSubmit}>Saqlash</Button>
@@ -217,3 +302,21 @@ export default function AddTestTemplatePage() {
     )
 }
 
+function LoadingFallback() {
+    return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+                <Loader2 className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto" />
+                <p className="mt-4 text-gray-600">Sahifa yuklanmoqda...</p>
+            </div>
+        </div>
+    )
+}
+
+export default function EditTestTemplatePage() {
+    return (
+        <Suspense fallback={<LoadingFallback />}>
+            <EditTestTemplatePageContent />
+        </Suspense>
+    )
+}

@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState, Suspense, useMemo } from "react"
+import { useRouter, useParams, useSearchParams } from "next/navigation"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Plus, ArrowLeft, Trash2, Save, CheckCircle, BookOpen } from "lucide-react"
+import { Plus, ArrowLeft, Trash2, Save, CheckCircle, BookOpen, Loader2 } from "lucide-react"
 
 import { apiService } from "@/lib/api"
 import { AdminSidebar } from "@/components/admin/sidebar"
@@ -22,12 +22,14 @@ interface Subject {
 }
 
 interface TestQuestionOption {
+    id?: number
     answerText: string
     imageUrl: string
     isCorrect: boolean
 }
 
 interface TestQuestion {
+    id?: number
     questionType: "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "WRITTEN_ANSWER" | "WRITTEN"
     questionText: string
     writtenAnswer: string
@@ -51,13 +53,24 @@ interface TestTemplateForm {
     imageUrl: string
 }
 
-function SubjectsPageContent() {
+function EditSubjectsPageContent() {
     const router = useRouter()
+    const params = useParams()
     const searchParams = useSearchParams()
+    
+    const templateId = params.templateId as string
     
     // Get template data from URL params
     const templateParam = searchParams.get('template')
-    const templateData = templateParam ? JSON.parse(decodeURIComponent(templateParam)) : null
+    const templateData = useMemo(() => {
+        if (!templateParam) return null
+        try {
+            return JSON.parse(decodeURIComponent(templateParam))
+        } catch (error) {
+            console.error('Error parsing template data:', error)
+            return null
+        }
+    }, [templateParam])
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [loading, setLoading] = useState(true)
@@ -83,38 +96,124 @@ function SubjectsPageContent() {
     // Initialize form with template data when it's available
     useEffect(() => {
         if (templateParam && templateData) {
-            setForm({
+            const newForm = {
                 title: templateData.title || "",
                 duration: templateData.duration || "",
                 price: templateData.price || "",
                 imageUrl: templateData.imageUrl || "",
-            })
+            }
+            setForm(newForm)
         }
-    }, [templateParam])
+    }, [templateParam, templateData])
+
+
 
     useEffect(() => {
-        const fetchSubjects = async () => {
+        const fetchData = async () => {
             try {
                 setLoading(true)
                 setError(null)
-                const res = await fetch("https://api.kelajakmerosi.uz/api/subject/all?page=0&size=100", {
+                
+                // Fetch subjects first
+                const subjectsRes = await fetch("https://api.kelajakmerosi.uz/api/subject/all?page=0&size=100", {
                     headers: { Authorization: `Bearer ${apiService.getAccessToken()}` },
                 })
-                const json = await res.json()
-                if (json?.success) setSubjects(json.data ?? [])
-                else throw new Error("Fanlarni yuklashda xatolik")
+                const subjectsJson = await subjectsRes.json()
+                console.log('Subjects response:', subjectsJson)
+                if (subjectsJson?.success) {
+                    setSubjects(subjectsJson.data ?? [])
+                    console.log('Set subjects:', subjectsJson.data)
+                    
+                    // After subjects are loaded, fetch template with questions
+                    console.log('Fetching template with ID:', templateId)
+                    const templateRes = await fetch(`https://api.kelajakmerosi.uz/api/template/getWithQuestions/${templateId}`, {
+                        headers: { Authorization: `Bearer ${apiService.getAccessToken()}` },
+                    })
+                    const templateJson = await templateRes.json()
+                    console.log('Template response:', templateJson)
+                    
+                                         if (templateJson?.success) {
+                         const template = templateJson.data.testTemplate || templateJson.data
+                         console.log('Template data:', template)
+                         const existingSubjects: SubjectWithQuestions[] = []
+                         
+                         // Handle the new API response structure
+                         if (template.subjects) {
+                             console.log('Found subjects:', template.subjects)
+                             template.subjects.forEach((subjectData: any) => {
+                                 const subject = subjectData.subject
+                                 if (subject) {
+                                     // Find questions for this subject
+                                     const subjectQuestions = templateJson.data.questions?.filter((q: any) => q.subjectId === subject.id) || []
+                                     console.log(`Questions for subject ${subject.id}:`, subjectQuestions)
+                                     
+                                     existingSubjects.push({
+                                         subjectId: subject.id.toString(),
+                                         subjectRole: subjectData.role,
+                                         subjectName: subject.name,
+                                         questions: subjectQuestions.map((q: any) => ({
+                                             id: q.id,
+                                             questionType: q.questionType === "WRITTEN_ANSWER" ? "WRITTEN" : q.questionType,
+                                             questionText: q.questionText || "",
+                                             writtenAnswer: q.writtenAnswer || "",
+                                             imageUrl: q.imageUrl || "",
+                                             youtubeUrl: q.youtubeUrl || "",
+                                             position: q.position || "",
+                                             options: q.testAnswerOptions?.map((opt: any) => ({
+                                                 id: opt.id,
+                                                 answerText: opt.answerText || "",
+                                                 imageUrl: opt.imageUrl || "",
+                                                 isCorrect: opt.isCorrect || false
+                                             })) || []
+                                         }))
+                                     })
+                                 }
+                             })
+                         } else {
+                             console.log('No subjects found in template data')
+                         }
+                         
+                         console.log('Processed subjects:', existingSubjects)
+                        
+                        console.log('Setting subjectWithQuestions:', existingSubjects)
+                        setSubjectWithQuestions(existingSubjects)
+                        
+                        // Initialize form with template data if not already set
+                        if (!templateData) {
+                            const newForm = {
+                                title: template.title || "",
+                                duration: template.duration?.toString() || "",
+                                price: template.price?.toString() || "",
+                                imageUrl: template.imageUrl || "",
+                            }
+                            console.log('Setting form with template data:', newForm)
+                            setForm(newForm)
+                        }
+                        
+                        // Store in localStorage with template ID
+                        localStorage.setItem(`editTestTemplateData_${templateId}`, JSON.stringify({
+                            title: template.title || "",
+                            duration: template.duration || "",
+                            price: template.price || "",
+                            imageUrl: template.imageUrl || "",
+                            subjectWithQuestions: existingSubjects
+                        }))
+                    }
+                } else {
+                    throw new Error("Fanlarni yuklashda xatolik")
+                }
             } catch (e: any) {
                 setError(e?.message || "Ma'lumotlarni yuklashda xatolik yuz berdi")
             } finally {
                 setLoading(false)
             }
         }
-        fetchSubjects()
-    }, [])
+        fetchData()
+    }, [templateId]) // Only depend on templateId
 
     // Load data from localStorage when returning from questions page
     useEffect(() => {
-        const storedData = localStorage.getItem('testTemplateData')
+        const storedData = localStorage.getItem(`editTestTemplateData_${templateId}`)
         if (storedData) {
             try {
                 const data = JSON.parse(storedData)
@@ -134,7 +233,7 @@ function SubjectsPageContent() {
                 console.error('Error parsing stored data:', error)
             }
         }
-    }, [])
+    }, [templateId, templateData])
 
     const addSubject = () => {
         if (!currentSubject.subjectId) {
@@ -158,13 +257,24 @@ function SubjectsPageContent() {
             return
         }
 
-        setSubjectWithQuestions(prev => [...prev, {
+        const newSubjectWithQuestions = [...subjectWithQuestions, {
             ...currentSubject,
             subjectName: selectedSubject.name
-        }])
+        }]
+        
+        setSubjectWithQuestions(newSubjectWithQuestions)
+
+        // Save to localStorage
+        localStorage.setItem(`editTestTemplateData_${templateId}`, JSON.stringify({
+            title: form.title || "",
+            duration: form.duration || "",
+            price: form.price || "",
+            imageUrl: form.imageUrl || "",
+            subjectWithQuestions: newSubjectWithQuestions
+        }))
 
         // Reset form for next subject
-        const hasMainSubject = subjectWithQuestions.some(s => s.subjectRole === "MAIN") || currentSubject.subjectRole === "MAIN"
+        const hasMainSubject = newSubjectWithQuestions.some(s => s.subjectRole === "MAIN")
         setCurrentQuestion({
             subjectId: "",
             subjectRole: hasMainSubject ? "SECONDARY" : "MAIN",
@@ -174,21 +284,31 @@ function SubjectsPageContent() {
     }
 
     const removeSubject = (index: number) => {
-        setSubjectWithQuestions(prev => prev.filter((_, i) => i !== index))
+        const newSubjectWithQuestions = subjectWithQuestions.filter((_, i) => i !== index)
+        setSubjectWithQuestions(newSubjectWithQuestions)
+        
+        // Save to localStorage
+        localStorage.setItem(`editTestTemplateData_${templateId}`, JSON.stringify({
+            title: form.title || "",
+            duration: form.duration || "",
+            price: form.price || "",
+            imageUrl: form.imageUrl || "",
+            subjectWithQuestions: newSubjectWithQuestions
+        }))
     }
 
     const navigateToQuestions = (subjectIndex: number) => {
-        // Store the current state in localStorage
-        localStorage.setItem('testTemplateData', JSON.stringify({
-            title: form.title,
-            duration: form.duration,
-            price: form.price,
-            imageUrl: form.imageUrl,
+        // Store the current state in localStorage with template ID
+        localStorage.setItem(`editTestTemplateData_${templateId}`, JSON.stringify({
+            title: form.title || "",
+            duration: form.duration || "",
+            price: form.price || "",
+            imageUrl: form.imageUrl || "",
             subjectWithQuestions: subjectWithQuestions,
             currentSubjectIndex: subjectIndex
         }))
         
-        router.push(`/admin/test-templates/add/questions?subjectIndex=${subjectIndex}`)
+        router.push(`/admin/test-templates/edit/${templateId}/questions?subjectIndex=${subjectIndex}`)
     }
 
     const handleSubmit = async () => {
@@ -220,8 +340,8 @@ function SubjectsPageContent() {
                 }))
             }
 
-            const res = await fetch("https://api.kelajakmerosi.uz/api/template/create", {
-                method: "POST",
+            const res = await fetch(`https://api.kelajakmerosi.uz/api/template/update/${templateId}`, {
+                method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${apiService.getAccessToken()}`,
@@ -231,7 +351,9 @@ function SubjectsPageContent() {
 
             const json = await res.json()
             if (json?.success) {
-                alert("Test shabloni muvaffaqiyatli yaratildi!")
+                // Clear localStorage after successful update
+                localStorage.removeItem(`editTestTemplateData_${templateId}`)
+                alert("Test shabloni muvaffaqiyatli yangilandi!")
                 router.push("/admin/test-templates")
             } else {
                 alert(json?.message || "Xatolik yuz berdi")
@@ -243,11 +365,21 @@ function SubjectsPageContent() {
         }
     }
 
+    // Clear localStorage when component unmounts or on error
+    useEffect(() => {
+        return () => {
+            // Only clear if there was an error or if we're navigating away without saving
+            if (error) {
+                localStorage.removeItem(`editTestTemplateData_${templateId}`)
+            }
+        }
+    }, [error, templateId])
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+                    <Loader2 className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto" />
                     <p className="mt-4 text-gray-600">Ma'lumotlar yuklanmoqda...</p>
                 </div>
             </div>
@@ -285,10 +417,27 @@ function SubjectsPageContent() {
                 {/* Header */}
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      
+                        <Button 
+                            variant="outline" 
+                            onClick={() => {
+                                if (subjectWithQuestions.length > 0) {
+                                    if (confirm("Saqlanmagan o'zgarishlar bor. Haqiqatan ham qaytmoqchimisiz?")) {
+                                        // Clear localStorage when going back without saving
+                                        localStorage.removeItem(`editTestTemplateData_${templateId}`)
+                                        router.push(`/admin/test-templates/edit/${templateId}`)
+                                    }
+                                } else {
+                                    router.push(`/admin/test-templates/edit/${templateId}`)
+                                }
+                            }}
+                            className="flex items-center gap-2"
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                            Orqaga
+                        </Button>
                         <div>
-                            <h1 className="text-2xl font-bold">Fanlar va savollar</h1>
-                            <p className="text-gray-600">Test shabloniga fanlar va savollar qo'shing</p>
+                            <h1 className="text-2xl font-bold">Fanlar va savollarni tahrirlash</h1>
+                            <p className="text-gray-600">Test shabloniga fanlar va savollar qo'shing yoki o'zgartiring</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -298,13 +447,13 @@ function SubjectsPageContent() {
                         <Button onClick={handleSubmit} disabled={saving || subjectWithQuestions.length === 0}>
                             {saving ? (
                                 <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                    Saqlanmoqda...
+                                    <Loader2 className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                                    Yangilanmoqda...
                                 </>
                             ) : (
                                 <>
                                     <Save className="h-4 w-4 mr-2" />
-                                    Saqlash
+                                    Yangilash
                                 </>
                             )}
                         </Button>
@@ -361,6 +510,8 @@ function SubjectsPageContent() {
                                     </div>
                                 </div>
 
+
+
                                 {/* Add Subject Button */}
                                 <Button 
                                     onClick={addSubject} 
@@ -380,7 +531,7 @@ function SubjectsPageContent() {
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <CheckCircle className="h-5 w-5" />
-                                    Qo'shilgan fanlar ({subjectWithQuestions.length})
+                                    Mavjud fanlar ({subjectWithQuestions.length})
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3">
@@ -441,17 +592,17 @@ function SubjectsPageLoading() {
     return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="text-center">
-                <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+                <Loader2 className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto" />
                 <p className="mt-4 text-gray-600">Sahifa yuklanmoqda...</p>
             </div>
         </div>
     )
 }
 
-export default function SubjectsPage() {
+export default function EditSubjectsPage() {
     return (
         <Suspense fallback={<SubjectsPageLoading />}>
-            <SubjectsPageContent />
+            <EditSubjectsPageContent />
         </Suspense>
     )
 }
