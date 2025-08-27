@@ -83,7 +83,7 @@ interface Question {
   imageUrl: string
   youtubeUrl: string
   position: string
-  testAnswerOptions: QuestionOption[]
+  options: QuestionOption[]
 }
 
 interface QuestionOption {

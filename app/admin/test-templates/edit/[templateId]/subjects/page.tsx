@@ -376,7 +376,7 @@ function EditSubjectsPageContent() {
                         imageUrl: q.imageUrl || "",
                         youtubeUrl: q.youtubeUrl || "",
                         position: q.position || "",
-                        testAnswerOptions: q.options?.map((opt: any) => ({
+                        options: q.options?.map((opt: any) => ({
                             id: opt.id,
                             answerText: opt.answerText || "",
                             imageUrl: opt.imageUrl || "",

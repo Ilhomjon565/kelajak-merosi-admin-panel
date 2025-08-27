@@ -46,12 +46,12 @@ interface Question {
   imageUrl: string
   youtubeUrl: string
   position: string
-  testAnswerOptions: QuestionOption[]
+  options: QuestionOption[]
 }
 
 interface QuestionOption {
-  id: number
-  questionId: number
+  id?: number
+  questionId?: number
   answerText: string
   imageUrl: string
   isCorrect: boolean
@@ -112,7 +112,7 @@ export function QuestionsManagement() {
   
   const [searchTerm, setSearchTerm] = useState("")
   const [subjectFilter, setSubjectFilter] = useState("all")
-  const [templateFilter, setTemplateFilter] = useState("all")
+
   const [typeFilter, setTypeFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -121,22 +121,86 @@ export function QuestionsManagement() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [selectedQuestion, setSelectedQuestion] = useState<QuestionWithTemplate | null>(null)
   
-  const [newQuestion, setNewQuestion] = useState({
-    questionText: "",
-    subjectId: "",
-    testTemplateId: "",
-    questionType: "",
-    writtenAnswer: "",
-    imageUrl: "",
-    youtubeUrl: "",
-    position: "1",
-    testAnswerOptions: [
-      { answerText: "", imageUrl: "", isCorrect: false },
-      { answerText: "", imageUrl: "", isCorrect: false },
-      { answerText: "", imageUrl: "", isCorrect: false },
-      { answerText: "", imageUrl: "", isCorrect: false }
-    ]
-  })
+     const [newQuestion, setNewQuestion] = useState<{
+       questionText: string
+       subjectId: string
+       testTemplateId: string
+       questionType: string
+       writtenAnswer: string
+       imageUrl: string
+       youtubeUrl: string
+       position: string
+       options: QuestionOption[]
+     }>({
+       questionText: "",
+       subjectId: "",
+       testTemplateId: "",
+       questionType: "",
+       writtenAnswer: "",
+       imageUrl: "",
+       youtubeUrl: "",
+       position: "1",
+       options: []
+     })
+
+     // Function to ensure we always have the correct number of options
+   const ensureCorrectOptionsCount = (options: any[], count: number = 4) => {
+     const currentOptions = [...options]
+     while (currentOptions.length < count) {
+       currentOptions.push({ answerText: "", imageUrl: "", isCorrect: false })
+     }
+     return currentOptions.slice(0, count)
+   }
+
+   // Function to add a new option
+   const addNewOption = () => {
+     setNewQuestion(prev => ({
+       ...prev,
+       options: [...prev.options, { answerText: "", imageUrl: "", isCorrect: false }]
+     }))
+   }
+
+  // Function to remove an option
+  const removeOption = (index: number) => {
+    setNewQuestion(prev => ({
+      ...prev,
+      options: prev.options.filter((_, i) => i !== index)
+    }))
+  }
+
+  // Function to validate options
+  const validateOptions = () => {
+    if (newQuestion.questionType === "MULTIPLE_CHOICE" || newQuestion.questionType === "SINGLE_CHOICE") {
+      const filledOptions = newQuestion.options.filter(opt => opt.answerText.trim() !== "")
+      if (filledOptions.length < 2) {
+        return false
+      }
+      // Check if at least one option is marked as correct
+      if (!newQuestion.options.some(opt => opt.isCorrect)) {
+        return false
+      }
+    }
+    // For WRITTEN_ANSWER questions, no options validation needed
+    return true
+  }
+
+  // Function to get validation errors
+  const getValidationErrors = () => {
+    const errors: string[] = []
+    
+    if (newQuestion.questionType === "MULTIPLE_CHOICE" || newQuestion.questionType === "SINGLE_CHOICE") {
+      const filledOptions = newQuestion.options.filter(opt => opt.answerText.trim() !== "")
+      if (filledOptions.length < 2) {
+        errors.push("Kamida 2 ta variant to'ldirilishi kerak")
+      }
+      if (!newQuestion.options.some(opt => opt.isCorrect)) {
+        errors.push("Kamida 1 ta to'g'ri javob tanlanishi kerak")
+      }
+    }
+    
+    // For WRITTEN_ANSWER questions, no options validation needed
+    return errors
+  }
 
   // Fetch data from API
   useEffect(() => {
@@ -173,113 +237,75 @@ export function QuestionsManagement() {
     }
   }
 
-  // Extract all questions from templates for display
-  const getAllQuestionsFromTemplates = (): QuestionWithTemplate[] => {
-    const allQuestions: QuestionWithTemplate[] = []
-    
-    testTemplates.forEach(template => {
-      template.testSubjectsAndQuestions?.forEach(subject => {
-        subject.testQuestions?.forEach(question => {
-          allQuestions.push({
-            id: Date.now() + Math.random(), // Generate unique ID for display
-            testSubjectId: subject.subjectId,
-            questionType: question.questionType,
-            writtenAnswer: question.writtenAnswer,
-            questionText: question.questionText,
-            imageUrl: question.imageUrl,
-            youtubeUrl: question.youtubeUrl,
-            position: question.position,
-            testAnswerOptions: question.options?.map((opt, index) => ({
-              id: index + 1,
-              questionId: 0,
-              answerText: opt.answerText,
-              imageUrl: opt.imageUrl,
-              isCorrect: opt.isCorrect
-            })) || [],
-            templateId: template.id,
-            templateTitle: template.title
-          })
-        })
-      })
+  // Get all questions and sort them by position
+  const getAllQuestions = (): Question[] => {
+    // Sort questions by position in ascending order
+    return questions.sort((a, b) => {
+      const positionA = parseInt(a.position) || 0
+      const positionB = parseInt(b.position) || 0
+      return positionA - positionB
     })
-    
-    return allQuestions
   }
 
-  const allQuestionsFromTemplates = getAllQuestionsFromTemplates()
+  const allQuestions = getAllQuestions()
 
-  const filteredQuestions = allQuestionsFromTemplates.filter(question => {
+  const filteredQuestions = allQuestions.filter(question => {
     const matchesSearch = question.questionText.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesSubject = subjectFilter === "all" || !subjectFilter || question.testSubjectId.toString() === subjectFilter
     const matchesType = typeFilter === "all" || !typeFilter || question.questionType === typeFilter
-    const matchesTemplate = templateFilter === "all" || !templateFilter || question.templateId.toString() === templateFilter
     
-    return matchesSearch && matchesSubject && matchesType && matchesTemplate
+    return matchesSearch && matchesSubject && matchesType
   })
 
   const handleAddQuestion = async () => {
-    if (!newQuestion.questionText || !newQuestion.subjectId || !newQuestion.testTemplateId || 
-        !newQuestion.questionType) {
+    if (!newQuestion.questionText || !newQuestion.subjectId || !newQuestion.questionType || !newQuestion.position) {
+      return
+    }
+
+    // Validate options for choice questions
+    if (!validateOptions()) {
       return
     }
 
     try {
-      // First, create or update the test template with the new question
-      const selectedTemplate = testTemplates.find(t => t.id.toString() === newQuestion.testTemplateId)
-      if (!selectedTemplate) {
-        console.error("Selected template not found")
-        return
-      }
+                    // Prepare the question data
+        const questionData = {
+          testSubjectId: parseInt(newQuestion.subjectId),
+          questionType: newQuestion.questionType,
+          questionText: newQuestion.questionText,
+          writtenAnswer: newQuestion.writtenAnswer,
+          imageUrl: newQuestion.imageUrl,
+          youtubeUrl: newQuestion.youtubeUrl,
+          position: newQuestion.position,
+          options: newQuestion.questionType === "WRITTEN_ANSWER" 
+            ? [] 
+            : newQuestion.options
+                .filter(opt => opt.answerText.trim() !== "")
+                .map((opt, index) => ({
+                  answerText: opt.answerText,
+                  imageUrl: opt.imageUrl,
+                  isCorrect: opt.isCorrect
+                }))
+        }
 
-      // Prepare the question data for the template
-      const questionData = {
-        questionType: newQuestion.questionType,
-        questionText: newQuestion.questionText,
-        writtenAnswer: newQuestion.writtenAnswer,
-        imageUrl: newQuestion.imageUrl,
-        youtubeUrl: newQuestion.youtubeUrl,
-        position: newQuestion.position,
-        options: newQuestion.testAnswerOptions
-          .filter(opt => opt.answerText.trim() !== "")
-          .map((opt, index) => ({
-            answerText: opt.answerText,
-            imageUrl: opt.imageUrl,
-            isCorrect: opt.isCorrect
-          }))
-      }
-
-      // Prepare template update data
-      const templateUpdateData = {
-        title: selectedTemplate.title,
-        duration: selectedTemplate.duration,
-        price: selectedTemplate.price,
-        testSubjectsAndQuestions: [{
-          subjectId: parseInt(newQuestion.subjectId),
-          subjectRole: "MAIN",
-          testQuestions: [questionData]
-        }]
-      }
-
-      // Update the template with the new question
-      const response = await apiService.updateTestTemplate(selectedTemplate.id, templateUpdateData)
+             // Log the data being sent
+       console.log("Creating question with data:", JSON.stringify(questionData, null, 2))
+       
+       // Create the question using the API
+       const response = await apiService.createQuestion(questionData)
       if (response.success) {
         await fetchData() // Refresh data
-        setNewQuestion({
-          questionText: "",
-          subjectId: "",
-          testTemplateId: "",
-          questionType: "",
-          writtenAnswer: "",
-          imageUrl: "",
-          youtubeUrl: "",
-          position: "1",
-          testAnswerOptions: [
-            { answerText: "", imageUrl: "", isCorrect: false },
-            { answerText: "", imageUrl: "", isCorrect: false },
-            { answerText: "", imageUrl: "", isCorrect: false },
-            { answerText: "", imageUrl: "", isCorrect: false }
-          ]
-        })
+                 setNewQuestion({
+           questionText: "",
+           subjectId: "",
+           testTemplateId: "",
+           questionType: "",
+           writtenAnswer: "",
+           imageUrl: "",
+           youtubeUrl: "",
+           position: "1",
+           options: []
+         })
         setIsAddDialogOpen(false)
       }
     } catch (err) {
@@ -289,59 +315,41 @@ export function QuestionsManagement() {
 
   const handleEditQuestion = async () => {
     if (!selectedQuestion || !newQuestion.questionText || !newQuestion.subjectId || 
-        !newQuestion.questionType) {
+        !newQuestion.questionType || !newQuestion.position) {
+      return
+    }
+
+    // Validate options for choice questions
+    if (!validateOptions()) {
       return
     }
 
     try {
-      // Find the template that contains this question
-      const templateWithQuestion = testTemplates.find(template => 
-        template.testSubjectsAndQuestions?.some(subject => 
-          subject.testQuestions?.some(q => q.questionText === selectedQuestion.questionText)
-        )
-      )
+             // Prepare the updated question data
+       const updatedQuestionData = {
+         testSubjectId: parseInt(newQuestion.subjectId),
+         questionType: newQuestion.questionType,
+         questionText: newQuestion.questionText,
+         writtenAnswer: newQuestion.writtenAnswer,
+         imageUrl: newQuestion.imageUrl,
+         youtubeUrl: newQuestion.youtubeUrl,
+         position: newQuestion.position,
+         options: newQuestion.questionType === "WRITTEN_ANSWER" 
+           ? [] 
+           : newQuestion.options
+               .filter(opt => opt.answerText.trim() !== "")
+               .map((opt, index) => ({
+                 answerText: opt.answerText,
+                 imageUrl: opt.imageUrl,
+                 isCorrect: opt.isCorrect
+               }))
+       }
 
-      if (!templateWithQuestion) {
-        console.error("Template containing question not found")
-        return
-      }
-
-      // Prepare the updated question data
-      const updatedQuestionData = {
-        questionType: newQuestion.questionType,
-        questionText: newQuestion.questionText,
-        writtenAnswer: newQuestion.writtenAnswer,
-        imageUrl: newQuestion.imageUrl,
-        youtubeUrl: newQuestion.youtubeUrl,
-        position: newQuestion.position,
-        options: newQuestion.testAnswerOptions
-          .filter(opt => opt.answerText.trim() !== "")
-          .map((opt, index) => ({
-            answerText: opt.answerText,
-            imageUrl: opt.imageUrl,
-            isCorrect: opt.isCorrect
-          }))
-      }
-
-      // Update the template with the modified question
-      const templateUpdateData = {
-        title: templateWithQuestion.title,
-        duration: templateWithQuestion.duration,
-        price: templateWithQuestion.price,
-        testSubjectsAndQuestions: templateWithQuestion.testSubjectsAndQuestions?.map(subject => {
-          if (subject.testQuestions?.some(q => q.questionText === selectedQuestion.questionText)) {
-            return {
-              ...subject,
-              testQuestions: subject.testQuestions?.map(q => 
-                q.questionText === selectedQuestion.questionText ? updatedQuestionData : q
-              ) || []
-            }
-          }
-          return subject
-        }) || []
-      }
-
-      const response = await apiService.updateTestTemplate(templateWithQuestion.id, templateUpdateData)
+             // Log the data being sent
+       console.log("Updating question with data:", JSON.stringify(updatedQuestionData, null, 2))
+       
+       // Update the question using the API
+       const response = await apiService.updateQuestion(selectedQuestion.id, updatedQuestionData)
       if (response.success) {
         await fetchData() // Refresh data
         setIsEditDialogOpen(false)
@@ -356,30 +364,8 @@ export function QuestionsManagement() {
     if (!selectedQuestion) return
     
     try {
-      // Find the template that contains this question
-      const templateWithQuestion = testTemplates.find(template => 
-        template.testSubjectsAndQuestions?.some(subject => 
-          subject.testQuestions?.some(q => q.questionText === selectedQuestion.questionText)
-        )
-      )
-
-      if (!templateWithQuestion) {
-        console.error("Template containing question not found")
-        return
-      }
-
-      // Remove the question from the template
-      const templateUpdateData = {
-        title: templateWithQuestion.title,
-        duration: templateWithQuestion.duration,
-        price: templateWithQuestion.price,
-        testSubjectsAndQuestions: templateWithQuestion.testSubjectsAndQuestions?.map(subject => ({
-          ...subject,
-          testQuestions: subject.testQuestions?.filter(q => q.questionText !== selectedQuestion.questionText) || []
-        })) || []
-      }
-
-      const response = await apiService.updateTestTemplate(templateWithQuestion.id, templateUpdateData)
+      // Delete the question using the API
+      const response = await apiService.deleteQuestion(selectedQuestion.id)
       if (response.success) {
         await fetchData() // Refresh data
         setIsDeleteDialogOpen(false)
@@ -390,29 +376,34 @@ export function QuestionsManagement() {
     }
   }
 
-  const openEditDialog = (question: QuestionWithTemplate) => {
-    setSelectedQuestion(question)
+  const openEditDialog = (question: Question) => {
+    setSelectedQuestion({
+      ...question,
+      templateId: "",
+      templateTitle: ""
+    })
     setNewQuestion({
       questionText: question.questionText,
       subjectId: question.testSubjectId.toString(),
-      testTemplateId: question.templateId.toString(),
+      testTemplateId: "",
       questionType: question.questionType,
       writtenAnswer: question.writtenAnswer,
       imageUrl: question.imageUrl,
       youtubeUrl: question.youtubeUrl,
       position: question.position,
-      testAnswerOptions: question.testAnswerOptions || [
-        { answerText: "", imageUrl: "", isCorrect: false },
-        { answerText: "", imageUrl: "", isCorrect: false },
-        { answerText: "", imageUrl: "", isCorrect: false },
-        { answerText: "", imageUrl: "", isCorrect: false }
-      ]
+      options: question.options && question.options.length > 0 
+        ? question.options 
+        : []
     })
     setIsEditDialogOpen(true)
   }
 
-  const openDeleteDialog = (question: QuestionWithTemplate) => {
-    setSelectedQuestion(question)
+  const openDeleteDialog = (question: Question) => {
+    setSelectedQuestion({
+      ...question,
+      templateId: "",
+      templateTitle: ""
+    })
     setIsDeleteDialogOpen(true)
   }
 
@@ -517,7 +508,7 @@ export function QuestionsManagement() {
               <HelpCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{allQuestionsFromTemplates.length}</div>
+              <div className="text-2xl font-bold">{allQuestions.length}</div>
             </CardContent>
           </Card>
           
@@ -528,7 +519,7 @@ export function QuestionsManagement() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
-                {new Set(allQuestionsFromTemplates.map(q => q.questionType)).size}
+                                 {new Set(allQuestions.map(q => q.questionType)).size}
               </div>
             </CardContent>
           </Card>
@@ -539,9 +530,9 @@ export function QuestionsManagement() {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {Math.round(allQuestionsFromTemplates.reduce((acc, q) => acc + q.testAnswerOptions.length, 0) / allQuestionsFromTemplates.length) || 0}
-              </div>
+                             <div className="text-2xl font-bold">
+                                  {Math.round(allQuestions.reduce((acc, q) => acc + q.options.length, 0) / allQuestions.length) || 0}
+               </div>
             </CardContent>
           </Card>
           
@@ -552,7 +543,7 @@ export function QuestionsManagement() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {new Set(allQuestionsFromTemplates.map(q => q.templateId)).size}
+                                 {new Set(allQuestions.map(q => q.testSubjectId)).size}
               </div>
             </CardContent>
           </Card>
@@ -605,19 +596,7 @@ export function QuestionsManagement() {
                   </SelectContent>
                 </Select>
                 
-                <Select value={templateFilter} onValueChange={setTemplateFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Shablon bo'yicha" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Barcha shablonlar</SelectItem>
-                    {testTemplates.map(template => (
-                      <SelectItem key={template.id} value={template.id.toString()}>
-                        {template.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
                 
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
                   <SelectTrigger className="w-40">
@@ -673,34 +652,51 @@ export function QuestionsManagement() {
                 </Select>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="testTemplate">Test Shabloni</Label>
-                <Select value={newQuestion.testTemplateId} onValueChange={(value) => setNewQuestion({...newQuestion, testTemplateId: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Shablon tanlang" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {testTemplates.map(template => (
-                      <SelectItem key={template.id} value={template.id.toString()}>
-                        {template.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+
+              
+                             <div className="space-y-2">
+                 <Label htmlFor="questionType">Savol turi</Label>
+                 <Select value={newQuestion.questionType} onValueChange={(value) => {
+                                  if (value === "MULTIPLE_CHOICE" || value === "SINGLE_CHOICE") {
+                   // For choice questions, clear written answer and set default options
+                   setNewQuestion(prev => ({
+                     ...prev,
+                     questionType: value,
+                     writtenAnswer: "",
+                     options: [
+                       { answerText: "", imageUrl: "", isCorrect: false },
+                       { answerText: "", imageUrl: "", isCorrect: false }
+                     ]
+                   }))
+                 } else if (value === "WRITTEN_ANSWER") {
+                   // For written answer questions, clear options
+                   setNewQuestion(prev => ({
+                     ...prev,
+                     questionType: value,
+                     options: []
+                   }))
+                 }
+                 }}>
+                   <SelectTrigger>
+                     <SelectValue placeholder="Tur tanlang" />
+                   </SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlovli</SelectItem>
+                     <SelectItem value="SINGLE_CHOICE">Bitta tanlovli</SelectItem>
+                     <SelectItem value="WRITTEN_ANSWER">Yozma savol</SelectItem>
+                   </SelectContent>
+                 </Select>
+               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="questionType">Savol turi</Label>
-                <Select value={newQuestion.questionType} onValueChange={(value) => setNewQuestion({...newQuestion, questionType: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tur tanlang" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlovli</SelectItem>
-                    <SelectItem value="SINGLE_CHOICE">Bitta tanlovli</SelectItem>
-                    <SelectItem value="WRITTEN_ANSWER">Yozma savol</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="position">Pozitsiya</Label>
+                <Input
+                  id="position"
+                  type="number"
+                  value={newQuestion.position}
+                  onChange={(e) => setNewQuestion({...newQuestion, position: e.target.value})}
+                  placeholder="Savol pozitsiyasini kiriting..."
+                />
               </div>
             </div>
             
@@ -715,37 +711,116 @@ export function QuestionsManagement() {
               />
             </div>
             
-            {(newQuestion.questionType === "MULTIPLE_CHOICE" || newQuestion.questionType === "SINGLE_CHOICE") && (
-              <div className="space-y-4">
-                <Label>Variantlar</Label>
-                {newQuestion.testAnswerOptions.map((option, index) => (
-                  <div key={index} className="flex gap-2 items-center">
-                    <Input
-                      placeholder={`Variant ${index + 1}`}
-                      value={option.answerText}
-                      onChange={(e) => {
-                        const updatedOptions = [...newQuestion.testAnswerOptions]
-                        updatedOptions[index].answerText = e.target.value
-                        setNewQuestion({...newQuestion, testAnswerOptions: updatedOptions})
-                      }}
-                    />
-                    <input
-                      type="radio"
-                      name="correctOption"
-                      checked={option.isCorrect}
-                      onChange={() => {
-                        const updatedOptions = newQuestion.testAnswerOptions.map((opt, i) => ({
-                          ...opt,
-                          isCorrect: i === index
-                        }))
-                        setNewQuestion({...newQuestion, testAnswerOptions: updatedOptions})
-                      }}
-                    />
-                    <Label className="text-sm">To'g'ri javob</Label>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="writtenAnswer">Yozma javob</Label>
+              <Textarea
+                id="writtenAnswer"
+                value={newQuestion.writtenAnswer}
+                onChange={(e) => setNewQuestion({...newQuestion, writtenAnswer: e.target.value})}
+                placeholder="Yozma javobni kiriting..."
+                rows={2}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="imageUrl">Rasm URL</Label>
+              <Input
+                id="imageUrl"
+                value={newQuestion.imageUrl}
+                onChange={(e) => setNewQuestion({...newQuestion, imageUrl: e.target.value})}
+                placeholder="Rasm URL manzilini kiriting..."
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="youtubeUrl">YouTube URL</Label>
+              <Input
+                id="youtubeUrl"
+                value={newQuestion.youtubeUrl}
+                onChange={(e) => setNewQuestion({...newQuestion, youtubeUrl: e.target.value})}
+                placeholder="YouTube video URL manzilini kiriting..."
+              />
+            </div>
+            
+                         {(newQuestion.questionType === "MULTIPLE_CHOICE" || newQuestion.questionType === "SINGLE_CHOICE") && (
+               <div className="space-y-4">
+                 <div className="flex justify-between items-center">
+                   <Label>Variantlar *</Label>
+                   <Button 
+                     type="button" 
+                     variant="outline" 
+                     size="sm" 
+                     onClick={addNewOption}
+                   >
+                     <Plus className="h-4 w-4 mr-1" />
+                     Variant qo'shish
+                   </Button>
+                 </div>
+                 
+                 {/* Validation Errors */}
+                 {getValidationErrors().length > 0 && (
+                   <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                     {getValidationErrors().map((error, index) => (
+                       <p key={index} className="text-red-600 text-sm">{error}</p>
+                     ))}
+                   </div>
+                 )}
+                 
+                 {newQuestion.options.map((option, index) => (
+                   <div key={index} className="space-y-2">
+                     <div className="flex gap-2 items-center">
+                       <Input
+                         placeholder={`Variant ${index + 1}`}
+                         value={option.answerText}
+                         onChange={(e) => {
+                           const updatedOptions = [...newQuestion.options]
+                           updatedOptions[index].answerText = e.target.value
+                           setNewQuestion({...newQuestion, options: updatedOptions})
+                         }}
+                         className={option.answerText.trim() === "" ? "border-red-300 focus:border-red-500" : ""}
+                       />
+                       <input
+                         type="radio"
+                         name="correctOption"
+                         checked={option.isCorrect}
+                         onChange={() => {
+                           const updatedOptions = newQuestion.options.map((opt, i) => ({
+                             ...opt,
+                             isCorrect: i === index
+                           }))
+                           setNewQuestion({...newQuestion, options: updatedOptions})
+                         }}
+                       />
+                       <Label className="text-sm">To'g'ri javob</Label>
+                       {newQuestion.options.length > 2 && (
+                         <Button
+                           type="button"
+                           variant="outline"
+                           size="sm"
+                           onClick={() => removeOption(index)}
+                           className="text-red-600 hover:text-red-700"
+                         >
+                           <Trash2 className="h-4 w-4" />
+                         </Button>
+                       )}
+                     </div>
+                     
+                     {/* Show error for empty option */}
+                     {option.answerText.trim() === "" && (
+                       <p className="text-red-500 text-xs">Bu variant to'ldirilishi shart</p>
+                     )}
+                   </div>
+                 ))}
+               </div>
+             )}
+
+             {newQuestion.questionType === "WRITTEN_ANSWER" && (
+               <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                 <p className="text-blue-600 text-sm">
+                   Yozma savol turi uchun variantlar kerak emas. Foydalanuvchi javobni yozadi.
+                 </p>
+               </div>
+             )}
             
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
@@ -771,7 +846,7 @@ export function QuestionsManagement() {
                         {subjects.find(s => s.id === question.testSubjectId)?.name || `Subject ${question.testSubjectId}`}
                       </Badge>
                       <Badge variant="outline">
-                        {question.templateTitle}
+                        #{question.position}
                       </Badge>
                       <Badge variant="outline">{getQuestionTypeText(question.questionType)}</Badge>
                     </div>
@@ -780,24 +855,49 @@ export function QuestionsManagement() {
               </CardHeader>
               
               <CardContent>
-                {question.testAnswerOptions && question.testAnswerOptions.length > 0 && (
+                                 {question.options && question.options.length > 0 && (
+                   <div className="mb-4">
+                     <Label className="text-sm font-medium mb-2 block">Variantlar:</Label>
+                     <div className="space-y-2">
+                       {question.options.map((option, index) => (
+                         <div key={index} className="flex items-center gap-2">
+                           <div className={`w-2 h-2 rounded-full ${option.isCorrect ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                           <span className={`text-sm ${option.isCorrect ? 'font-medium text-green-700' : 'text-gray-600'}`}>
+                             {option.answerText}
+                           </span>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 )}
+                
+                {question.writtenAnswer && (
                   <div className="mb-4">
-                    <Label className="text-sm font-medium mb-2 block">Variantlar:</Label>
-                    <div className="space-y-2">
-                      {question.testAnswerOptions.map((option, index) => (
-                        <div key={index} className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${option.isCorrect ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                          <span className={`text-sm ${option.isCorrect ? 'font-medium text-green-700' : 'text-gray-600'}`}>
-                            {option.answerText}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    <Label className="text-sm font-medium mb-2 block">Yozma javob:</Label>
+                    <p className="text-sm text-gray-700">{question.writtenAnswer}</p>
+                  </div>
+                )}
+                
+                {question.imageUrl && (
+                  <div className="mb-4">
+                    <Label className="text-sm font-medium mb-2 block">Rasm:</Label>
+                    <a href={question.imageUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
+                      {question.imageUrl}
+                    </a>
+                  </div>
+                )}
+                
+                {question.youtubeUrl && (
+                  <div className="mb-4">
+                    <Label className="text-sm font-medium mb-2 block">YouTube video:</Label>
+                    <a href={question.youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
+                      {question.youtubeUrl}
+                    </a>
                   </div>
                 )}
                 
                 <div className="flex justify-between text-sm text-gray-600 mb-4">
-                  <span>Shablon: {question.templateTitle}</span>
+                  <span>Pozitsiya: #{question.position}</span>
                   <span>Fan: {subjects.find(s => s.id === question.testSubjectId)?.name || `Subject ${question.testSubjectId}`}</span>
                 </div>
                 
@@ -831,7 +931,7 @@ export function QuestionsManagement() {
           <Card className="text-center py-12">
             <CardContent>
               <p className="text-gray-500 text-lg">
-                {searchTerm || subjectFilter || templateFilter || typeFilter || statusFilter 
+                {searchTerm || subjectFilter || typeFilter || statusFilter 
                   ? "Qidiruv natijalariga mos keladigan savollar topilmadi"
                   : "Hali hech qanday savol qo'shilmagan"}
               </p>
@@ -867,73 +967,54 @@ export function QuestionsManagement() {
               </Select>
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="edit-testTemplate">Test Shabloni</Label>
-              <Select value={newQuestion.testTemplateId} onValueChange={(value) => setNewQuestion({...newQuestion, testTemplateId: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Shablon tanlang" />
-                </SelectTrigger>
-                <SelectContent>
-                  {testTemplates.map(template => (
-                    <SelectItem key={template.id} value={template.id.toString()}>
-                      {template.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+
+            
+                         <div className="space-y-2">
+               <Label htmlFor="edit-questionType">Savol turi</Label>
+               <Select value={newQuestion.questionType} onValueChange={(value) => {
+                 if (value === "MULTIPLE_CHOICE" || value === "SINGLE_CHOICE") {
+                   // For choice questions, clear written answer and set default options
+                   setNewQuestion(prev => ({
+                     ...prev,
+                     questionType: value,
+                     writtenAnswer: "",
+                     options: [
+                       { answerText: "", imageUrl: "", isCorrect: false },
+                       { answerText: "", imageUrl: "", isCorrect: false }
+                     ]
+                   }))
+                 } else if (value === "WRITTEN_ANSWER") {
+                   // For written answer questions, clear options
+                   setNewQuestion(prev => ({
+                     ...prev,
+                     questionType: value,
+                     options: []
+                   }))
+                 }
+               }}>
+                 <SelectTrigger>
+                   <SelectValue placeholder="Tur tanlang" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlovli</SelectItem>
+                   <SelectItem value="SINGLE_CHOICE">Bitta tanlovli</SelectItem>
+                   <SelectItem value="WRITTEN_ANSWER">Yozma savol</SelectItem>
+                 </SelectContent>
+               </Select>
+             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="edit-questionType">Savol turi</Label>
-              <Select value={newQuestion.questionType} onValueChange={(value) => setNewQuestion({...newQuestion, questionType: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tur tanlang" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MULTIPLE_CHOICE">Ko'p tanlovli</SelectItem>
-                  <SelectItem value="SINGLE_CHOICE">Bitta tanlovli</SelectItem>
-                  <SelectItem value="WRITTEN_ANSWER">Yozma savol</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="edit-difficultyLevel">Qiyinlik darajasi</Label>
-              <Select value="MEDIUM" onValueChange={(value) => console.log(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Daraja tanlang" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="EASY">Oson</SelectItem>
-                  <SelectItem value="MEDIUM">O'rtacha</SelectItem>
-                  <SelectItem value="HARD">Qiyin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="edit-points">Ball</Label>
+              <Label htmlFor="edit-position">Pozitsiya</Label>
               <Input
-                id="edit-points"
+                id="edit-position"
                 type="number"
-                // value={newQuestion.points}
-                // onChange={(e) => setNewQuestion({...newQuestion, points: e.target.value})}
-                placeholder="10"
+                value={newQuestion.position}
+                onChange={(e) => setNewQuestion({...newQuestion, position: e.target.value})}
+                placeholder="Savol pozitsiyasini kiriting..."
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="edit-isActive">Faol</Label>
-              <Select value="true" onValueChange={(value) => console.log(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Ha</SelectItem>
-                  <SelectItem value="false">Yo'q</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+
           </div>
           
           <div className="space-y-2">
@@ -947,37 +1028,116 @@ export function QuestionsManagement() {
             />
           </div>
           
-          {(newQuestion.questionType === "MULTIPLE_CHOICE" || newQuestion.questionType === "SINGLE_CHOICE") && (
-            <div className="space-y-4">
-              <Label>Variantlar</Label>
-              {newQuestion.testAnswerOptions.map((option, index) => (
-                <div key={index} className="flex gap-2 items-center">
-                  <Input
-                    placeholder={`Variant ${index + 1}`}
-                    value={option.answerText}
-                    onChange={(e) => {
-                      const updatedOptions = [...newQuestion.testAnswerOptions]
-                      updatedOptions[index].answerText = e.target.value
-                      setNewQuestion({...newQuestion, testAnswerOptions: updatedOptions})
-                    }}
-                  />
-                  <input
-                    type="radio"
-                    name="editCorrectOption"
-                    checked={option.isCorrect}
-                    onChange={() => {
-                      const updatedOptions = newQuestion.testAnswerOptions.map((opt, i) => ({
-                        ...opt,
-                        isCorrect: i === index
-                      }))
-                      setNewQuestion({...newQuestion, testAnswerOptions: updatedOptions})
-                    }}
-                  />
-                  <Label className="text-sm">To'g'ri javob</Label>
+          <div className="space-y-2">
+            <Label htmlFor="edit-writtenAnswer">Yozma javob</Label>
+            <Textarea
+              id="edit-writtenAnswer"
+              value={newQuestion.writtenAnswer}
+              onChange={(e) => setNewQuestion({...newQuestion, writtenAnswer: e.target.value})}
+              placeholder="Yozma javobni kiriting..."
+              rows={2}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="edit-imageUrl">Rasm URL</Label>
+            <Input
+              id="edit-imageUrl"
+              value={newQuestion.imageUrl}
+              onChange={(e) => setNewQuestion({...newQuestion, imageUrl: e.target.value})}
+              placeholder="Rasm URL manzilini kiriting..."
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="edit-youtubeUrl">YouTube URL</Label>
+            <Input
+              id="edit-youtubeUrl"
+              value={newQuestion.youtubeUrl}
+              onChange={(e) => setNewQuestion({...newQuestion, youtubeUrl: e.target.value})}
+              placeholder="YouTube video URL manzilini kiriting..."
+            />
+          </div>
+          
+                                           {(newQuestion.questionType === "MULTIPLE_CHOICE" || newQuestion.questionType === "SINGLE_CHOICE") && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Label>Variantlar *</Label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={addNewOption}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Variant qo'shish
+                  </Button>
                 </div>
-              ))}
-            </div>
-          )}
+                
+                {/* Validation Errors */}
+                {getValidationErrors().length > 0 && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                    {getValidationErrors().map((error, index) => (
+                      <p key={index} className="text-red-600 text-sm">{error}</p>
+                    ))}
+                  </div>
+                )}
+                
+                                 {newQuestion.options.map((option, index) => (
+                   <div key={index} className="space-y-2">
+                     <div className="flex gap-2 items-center">
+                       <Input
+                         placeholder={`Variant ${index + 1}`}
+                         value={option.answerText}
+                         onChange={(e) => {
+                           const updatedOptions = [...newQuestion.options]
+                           updatedOptions[index].answerText = e.target.value
+                           setNewQuestion({...newQuestion, options: updatedOptions})
+                         }}
+                         className={option.answerText.trim() === "" ? "border-red-300 focus:border-red-500" : ""}
+                       />
+                       <input
+                         type="radio"
+                         name="editCorrectOption"
+                         checked={option.isCorrect}
+                         onChange={() => {
+                           const updatedOptions = newQuestion.options.map((opt, i) => ({
+                             ...opt,
+                             isCorrect: i === index
+                           }))
+                           setNewQuestion({...newQuestion, options: updatedOptions})
+                         }}
+                       />
+                       <Label className="text-sm">To'g'ri javob</Label>
+                       {newQuestion.options.length > 2 && (
+                         <Button
+                           type="button"
+                           variant="outline"
+                           size="sm"
+                           onClick={() => removeOption(index)}
+                           className="text-red-600 hover:text-red-700"
+                         >
+                           <Trash2 className="h-4 w-4" />
+                         </Button>
+                       )}
+                     </div>
+                     
+                     {/* Show error for empty option */}
+                     {option.answerText.trim() === "" && (
+                       <p className="text-red-500 text-xs">Bu variant to'ldirilishi shart</p>
+                     )}
+                   </div>
+                 ))}
+              </div>
+            )}
+
+            {newQuestion.questionType === "WRITTEN_ANSWER" && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <p className="text-blue-600 text-sm">
+                  Yozma savol turi uchun variantlar kerak emas. Foydalanuvchi javobni yozadi.
+                </p>
+              </div>
+            )}
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
