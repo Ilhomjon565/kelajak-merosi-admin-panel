@@ -358,9 +358,7 @@ function EditSubjectsPageContent() {
         try {
             console.log('Current subjectWithQuestions state:', subjectWithQuestions)
             
-            // Merge existing questions with new subject structure
             const mergedSubjectsWithQuestions = subjectWithQuestions.map(subject => {
-                // Use the questions from the current state (which includes localStorage updates)
                 const finalQuestions = subject.questions
                 
                 console.log(`Subject ${subject.subjectId} - Questions from state:`, finalQuestions)
@@ -625,7 +623,7 @@ function EditSubjectsPageContent() {
                                                         onClick={() => removeSubject(index)}
                                                     >
                                                         <Trash2 className="h-3 w-3" />
-                                                    </Button>
+                                                    </Button>   
                                                 </div>
                                             </div>
                                         </div>

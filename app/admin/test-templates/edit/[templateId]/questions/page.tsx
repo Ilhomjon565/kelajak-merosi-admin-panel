@@ -496,6 +496,7 @@ function EditQuestionsPageContent() {
                                                 }}
                                                 className="border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
                                             />
+                                            <button onClick={() => setCurrentQuestion({ ...currentQuestion, imageUrl: "" })}>Rasmni o'chirish</button>
                                             {currentQuestion.imageUrl && (
                                                 <div className="absolute -top-2 -right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full border border-green-200">
                                                     ✓ Rasm yuklandi
