@@ -149,7 +149,7 @@ class ApiService {
 
   // Authentication methods
   async login(phoneNumber: string): Promise<ApiResponse<boolean>> {
-    return this.request<boolean>('/api/auth/login', {
+    return this.request<boolean>('/api/auth/admin/login', {
       method: 'POST',
       body: JSON.stringify({ phoneNumber }),
     })
